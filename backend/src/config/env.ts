@@ -16,6 +16,20 @@ const envSchema = z.object({
   ADMIN_SEED_EMAIL: z.string().email().optional(),
   ADMIN_SEED_PASSWORD: z.string().min(8).optional(),
   ADMIN_SEED_NAME: z.string().optional(),
+
+  CLOUDINARY_CLOUD_NAME: z.string().min(1, "CLOUDINARY_CLOUD_NAME is required"),
+  CLOUDINARY_API_KEY: z.string().min(1, "CLOUDINARY_API_KEY is required"),
+  CLOUDINARY_API_SECRET: z.string().min(1, "CLOUDINARY_API_SECRET is required"),
+
+  GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
+  GEMINI_IMAGE_MODEL_PRIMARY: z.string().default("gemini-3-pro-image-preview"),
+  GEMINI_IMAGE_MODEL_FAST: z.string().default("gemini-3.1-flash-image"),
+
+  // Optional: lets the backend tell the storefront to drop its cached catalog pages
+  // right after an admin write, instead of waiting for a full rebuild. Degrades
+  // gracefully (silently skipped) if unset.
+  STOREFRONT_REVALIDATE_URL: z.string().url().optional(),
+  REVALIDATE_SECRET: z.string().min(16).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

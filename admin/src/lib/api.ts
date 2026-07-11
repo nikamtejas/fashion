@@ -13,11 +13,15 @@ export class ApiRequestError extends Error {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
+
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      // FormData sets its own multipart boundary — an explicit Content-Type here
+      // would omit that boundary and break upload parsing on the server.
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...init?.headers,
     },
   });
