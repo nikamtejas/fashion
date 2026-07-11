@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --color-ivory: #faf7f2;
+  --color-ink: #141414;
+  --color-sienna: #c15b3c;
+  --color-sienna-dark: #a54a30;
+  --color-sage: #8a9a7e;
+  --color-sage-dark: #6f8064;
+  --color-charcoal: #211f1c;
+  --color-charcoal-light: #2b2926;
+
+  --background: var(--color-ivory);
+  --foreground: var(--color-ink);
+  --surface: #ffffff;
+  --border: #e7e0d5;
+  --accent: var(--color-sienna);
+  --success: var(--color-sage);
+}
+
+.dark {
+  --background: var(--color-charcoal);
+  --foreground: #f3ede3;
+  --surface: var(--color-charcoal-light);
+  --border: #3a362f;
+  --accent: #d97a58;
+  --success: #a3b596;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: #fff8f2;
+  --color-success: var(--success);
+  --color-ivory: var(--color-ivory);
+  --color-ink: var(--color-ink);
+  --color-sienna: var(--color-sienna);
+  --color-sage: var(--color-sage);
+  --color-charcoal: var(--color-charcoal);
+
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-inter);
+
+  --animate-marquee: marquee 28s linear infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+::selection {
+  background: var(--color-sienna);
+  color: #fff8f2;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-sienna);
+  outline-offset: 2px;
+}
