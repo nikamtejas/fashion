@@ -32,6 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Bootstrapping session state from the backend on mount — the "subscribe to an
+    // external system" case the rule's own message calls out, not derived state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
   }, [refresh]);
 
