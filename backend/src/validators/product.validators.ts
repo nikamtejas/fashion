@@ -15,6 +15,7 @@ const productImageSchema = z.object({
   geminiModel: z.string().optional(),
   status: z.enum(["accepted", "original"]),
   isPrimary: z.boolean().default(false),
+  color: z.string().trim().min(1).optional(),
 });
 
 // Only the raw inputs are accepted from the client — baseCost/marginAmount/preTaxPrice/
@@ -47,6 +48,12 @@ export const updateProductSchema = productBaseSchema.partial();
 export const enhanceImageBodySchema = z.object({
   tier: z.enum(["primary", "fast"]).default("fast"),
   promptOverride: z.string().trim().max(2000).optional(),
+  // Arrives as a form-data string ("true"/"false"), not a real boolean — z.coerce.boolean()
+  // would treat the literal string "false" as truthy, so this is matched explicitly instead.
+  skipEnhance: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

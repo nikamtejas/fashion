@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@/lib/products";
 import { withCloudinaryTransform } from "@/lib/cloudinary";
+import { FavoriteButton } from "./FavoriteButton";
 
 export function ProductCard({ product, priority = false }: { product: Product; priority?: boolean }) {
   const primary = product.images.find((img) => img.isPrimary) ?? product.images[0];
@@ -9,6 +10,7 @@ export function ProductCard({ product, priority = false }: { product: Product; p
   return (
     <Link href={`/products/${product.slug}`} className="group block">
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-black/5 dark:bg-white/5">
+        <FavoriteButton productId={product.id} />
         {primary ? (
           <Image
             src={withCloudinaryTransform(primary.url, "f_auto,q_auto,w_800")}

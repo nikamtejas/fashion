@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useFavorites } from "@/context/FavoritesContext";
+import { useCart } from "@/context/CartContext";
 
 const NAV_LINKS = [
   { href: "/", label: "Shop" },
@@ -13,6 +15,8 @@ const NAV_LINKS = [
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, isLoading, logout } = useAuth();
+  const { favoriteIds } = useFavorites();
+  const { itemCount } = useCart();
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/90 backdrop-blur dark:border-white/10 dark:bg-black/90">
@@ -57,7 +61,7 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          <IconButton label="Wishlist" href="/account/wishlist">
+          <IconButton label="Wishlist" href="/account/wishlist" count={favoriteIds.size}>
             <path
               d="M12 20s-7-4.35-9.5-8.5C.7 8.1 2.3 4.5 6 4.5c2 0 3.4 1.1 4 2.3.6-1.2 2-2.3 4-2.3 3.7 0 5.3 3.6 3.5 7-2.5 4.15-9.5 8.5-9.5 8.5z"
               stroke="currentColor"
@@ -66,7 +70,7 @@ export function Header() {
               strokeLinejoin="round"
             />
           </IconButton>
-          <IconButton label="Cart" href="/cart">
+          <IconButton label="Cart" href="/cart" count={itemCount}>
             <path
               d="M6 8h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 8Z"
               stroke="currentColor"
@@ -141,21 +145,28 @@ export function Header() {
 function IconButton({
   label,
   href,
+  count,
   children,
 }: {
   label: string;
   href: string;
+  count?: number;
   children: ReactNode;
 }) {
   return (
     <Link
       href={href}
-      aria-label={label}
-      className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+      aria-label={count ? `${label} (${count})` : label}
+      className="relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
     >
       <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
         {children}
       </svg>
+      {Boolean(count) && (
+        <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 text-[10px] font-medium text-white dark:bg-white dark:text-black">
+          {count}
+        </span>
+      )}
     </Link>
   );
 }

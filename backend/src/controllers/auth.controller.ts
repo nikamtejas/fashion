@@ -3,9 +3,19 @@ import { UserModel } from "../models/User.js";
 import { hashPassword, comparePassword } from "../utils/password.js";
 import { signSession } from "../utils/jwt.js";
 import { setSessionCookie, clearSessionCookie } from "../utils/cookies.js";
-import { signupSchema, loginSchema } from "../validators/auth.validators.js";
+import { signupSchema, loginSchema, addAddressSchema } from "../validators/auth.validators.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+
+interface UserAddress {
+  _id: unknown;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  isDefault?: boolean | null;
+}
 
 function toPublicUser(user: {
   _id: unknown;
@@ -14,6 +24,7 @@ function toPublicUser(user: {
   phone?: string | null;
   whatsappNumber?: string | null;
   role: string;
+  addresses?: UserAddress[];
 }) {
   return {
     id: String(user._id),
@@ -22,6 +33,15 @@ function toPublicUser(user: {
     phone: user.phone ?? null,
     whatsappNumber: user.whatsappNumber ?? null,
     role: user.role,
+    addresses: (user.addresses ?? []).map((a) => ({
+      id: String(a._id),
+      line1: a.line1,
+      line2: a.line2 ?? null,
+      city: a.city,
+      state: a.state,
+      pincode: a.pincode,
+      isDefault: Boolean(a.isDefault),
+    })),
   };
 }
 
@@ -81,4 +101,23 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(401, "Not authenticated");
   }
   res.json({ user: toPublicUser(user) });
+});
+
+export const addAddress = asyncHandler(async (req: Request, res: Response) => {
+  const input = addAddressSchema.parse(req.body);
+  const user = await UserModel.findById(req.session!.sub);
+  if (!user) {
+    throw new ApiError(401, "Not authenticated");
+  }
+
+  if (input.isDefault || user.addresses.length === 0) {
+    user.addresses.forEach((a) => {
+      a.isDefault = false;
+    });
+    input.isDefault = true;
+  }
+  user.addresses.push(input);
+  await user.save();
+
+  res.status(201).json({ user: toPublicUser(user) });
 });

@@ -1,6 +1,7 @@
 import { apiFetch } from "./api";
 
 export interface ProductVariant {
+  sku: string;
   size: string;
   color: string;
   stock: number;
@@ -9,6 +10,7 @@ export interface ProductVariant {
 export interface ProductImage {
   url: string;
   isPrimary: boolean;
+  color?: string;
 }
 
 export interface Product {

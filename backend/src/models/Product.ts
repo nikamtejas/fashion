@@ -22,6 +22,10 @@ const productImageSchema = new Schema(
     geminiModel: { type: String },
     status: { type: String, enum: ["accepted", "original"], required: true },
     isPrimary: { type: Boolean, default: false },
+    // Optional — ties this photo to one of the product's variant colors so the
+    // storefront gallery can filter by the color a customer selects. Untagged
+    // images are treated as generic and shown regardless of color selection.
+    color: { type: String, trim: true },
   },
   { _id: true }
 );

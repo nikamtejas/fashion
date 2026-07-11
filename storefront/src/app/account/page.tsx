@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -32,10 +33,26 @@ export default function AccountPage() {
           <Row label="Email" value={user.email} />
           <Row label="Phone" value={user.phone ?? "—"} />
         </dl>
+
+        <div className="mt-6 flex flex-col gap-1">
+          <Link
+            href="/account/orders"
+            className="rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            My orders
+          </Link>
+          <Link
+            href="/account/wishlist"
+            className="rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            My wishlist
+          </Link>
+        </div>
+
         <button
           type="button"
           onClick={() => logout()}
-          className="mt-8 flex h-12 w-full items-center justify-center rounded-full border border-black/15 text-sm font-medium hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          className="mt-6 flex h-12 w-full items-center justify-center rounded-full border border-black/15 text-sm font-medium hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
         >
           Log out
         </button>

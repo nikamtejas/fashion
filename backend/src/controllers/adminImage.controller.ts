@@ -9,13 +9,21 @@ export const enhanceImage = asyncHandler(async (req: Request, res: Response) => 
   if (!req.file) {
     throw new ApiError(400, "No image file uploaded (field name: image)");
   }
-  const { tier, promptOverride } = enhanceImageBodySchema.parse(req.body);
+  const { tier, promptOverride, skipEnhance } = enhanceImageBodySchema.parse(req.body);
 
   const original = await uploadImageBuffer(
     req.file.buffer,
     req.file.mimetype,
     "fashion/products/original"
   );
+
+  if (skipEnhance) {
+    res.status(201).json({
+      original: { publicId: original.publicId, url: original.url },
+      enhanced: null,
+    });
+    return;
+  }
 
   // Gemini can fail for reasons outside our control (quota, transient errors,
   // content policy). The admin must still be able to fall back to the original

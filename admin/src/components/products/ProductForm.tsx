@@ -11,6 +11,7 @@ import { ApiRequestError } from "@/lib/api";
 
 interface GalleryImage extends ResolvedImage {
   isPrimary: boolean;
+  color?: string;
 }
 
 function toGalleryImages(product?: Product): GalleryImage[] {
@@ -23,6 +24,7 @@ function toGalleryImages(product?: Product): GalleryImage[] {
     geminiModel: img.geminiModel,
     status: img.status,
     isPrimary: img.isPrimary,
+    color: img.color,
   }));
 }
 
@@ -106,6 +108,12 @@ export function ProductForm({
     setImages((prev) => prev.map((img, i) => ({ ...img, isPrimary: i === index })));
   }
 
+  function updateImageColor(index: number, color: string) {
+    setImages((prev) => prev.map((img, i) => (i === index ? { ...img, color: color || undefined } : img)));
+  }
+
+  const variantColors = Array.from(new Set(variants.map((v) => v.color.trim()).filter(Boolean)));
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -128,15 +136,18 @@ export function ProductForm({
         stock: Number(stock) || 0,
         pricing,
         variants,
-        images: images.map(({ originalPublicId, originalUrl, enhancedPublicId, enhancedUrl, geminiModel, status: imgStatus, isPrimary }) => ({
-          originalPublicId,
-          originalUrl,
-          enhancedPublicId,
-          enhancedUrl,
-          geminiModel,
-          status: imgStatus,
-          isPrimary,
-        })),
+        images: images.map(
+          ({ originalPublicId, originalUrl, enhancedPublicId, enhancedUrl, geminiModel, status: imgStatus, isPrimary, color }) => ({
+            originalPublicId,
+            originalUrl,
+            enhancedPublicId,
+            enhancedUrl,
+            geminiModel,
+            status: imgStatus,
+            isPrimary,
+            color,
+          })
+        ),
         status,
       };
       const result = await onSubmit(input);
@@ -274,31 +285,47 @@ export function ProductForm({
         {images.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {images.map((img, index) => (
-              <div key={index} className="relative overflow-hidden rounded-lg border border-black/10 dark:border-white/10">
-                {/* eslint-disable-next-line @next/next/no-img-element -- admin gallery thumbnail, arbitrary Cloudinary URL */}
-                <img
-                  src={img.status === "accepted" ? img.enhancedUrl : img.originalUrl}
-                  alt=""
-                  className="aspect-square w-full object-cover"
-                />
-                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/60 p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => makePrimary(index)}
-                    className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                      img.isPrimary ? "bg-white text-black" : "text-white"
-                    }`}
-                  >
-                    {img.isPrimary ? "Primary" : "Set primary"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeImage(index)}
-                    className="rounded px-1.5 py-0.5 text-[11px] font-medium text-white"
-                  >
-                    Remove
-                  </button>
+              <div key={index} className="flex flex-col gap-1.5">
+                <div className="relative overflow-hidden rounded-lg border border-black/10 dark:border-white/10">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- admin gallery thumbnail, arbitrary Cloudinary URL */}
+                  <img
+                    src={img.status === "accepted" ? img.enhancedUrl : img.originalUrl}
+                    alt=""
+                    className="aspect-square w-full object-cover"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/60 p-1.5">
+                    <button
+                      type="button"
+                      onClick={() => makePrimary(index)}
+                      className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                        img.isPrimary ? "bg-white text-black" : "text-white"
+                      }`}
+                    >
+                      {img.isPrimary ? "Primary" : "Set primary"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="rounded px-1.5 py-0.5 text-[11px] font-medium text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
+                {variantColors.length > 0 && (
+                  <select
+                    value={img.color ?? ""}
+                    onChange={(e) => updateImageColor(index, e.target.value)}
+                    className="h-8 rounded-md border border-black/15 bg-transparent px-1.5 text-xs dark:border-white/20"
+                  >
+                    <option value="">All colors</option>
+                    {variantColors.map((color) => (
+                      <option key={color} value={color}>
+                        {color}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             ))}
           </div>

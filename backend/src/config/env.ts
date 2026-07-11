@@ -30,6 +30,13 @@ const envSchema = z.object({
   // gracefully (silently skipped) if unset.
   STOREFRONT_REVALIDATE_URL: z.string().url().optional(),
   REVALIDATE_SECRET: z.string().min(16).optional(),
+
+  // Optional so COD checkout keeps working before Razorpay is set up — the Razorpay
+  // routes themselves return a clear 503 if these are missing when actually used.
+  // Snapmint EMI needs no separate keys: it's enabled as a checkout option directly
+  // on the Razorpay account (SPEC.md §4.4).
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

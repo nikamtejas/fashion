@@ -21,11 +21,14 @@ export function ImageEnhancer({ onResolved }: { onResolved: (image: ResolvedImag
   const [tier, setTier] = useState<Tier>("fast");
   const [result, setResult] = useState<EnhanceImageResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSkipUpload, setIsSkipUpload] = useState(false);
   const fileRef = useRef<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const skipInputRef = useRef<HTMLInputElement>(null);
 
   async function runEnhance(file: File, selectedTier: Tier) {
     setStage("uploading");
+    setIsSkipUpload(false);
     setError(null);
     try {
       const res = await enhanceImage(file, selectedTier);
@@ -37,11 +40,37 @@ export function ImageEnhancer({ onResolved }: { onResolved: (image: ResolvedImag
     }
   }
 
+  // No review step here — there's nothing to compare, so the image resolves
+  // straight to "original" the moment the upload finishes.
+  async function runSkipUpload(file: File) {
+    setStage("uploading");
+    setIsSkipUpload(true);
+    setError(null);
+    try {
+      const res = await enhanceImage(file, tier, true);
+      onResolved({
+        originalPublicId: res.original.publicId,
+        originalUrl: res.original.url,
+        status: "original",
+      });
+      reset();
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : "Upload failed");
+      setStage("error");
+    }
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     fileRef.current = file;
     runEnhance(file, tier);
+  }
+
+  function handleSkipFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    runSkipUpload(file);
   }
 
   function reset() {
@@ -50,6 +79,7 @@ export function ImageEnhancer({ onResolved }: { onResolved: (image: ResolvedImag
     setError(null);
     fileRef.current = null;
     if (inputRef.current) inputRef.current.value = "";
+    if (skipInputRef.current) skipInputRef.current.value = "";
   }
 
   function accept() {
@@ -108,6 +138,16 @@ export function ImageEnhancer({ onResolved }: { onResolved: (image: ResolvedImag
                 onChange={handleFileChange}
               />
             </label>
+            <label className="flex h-10 cursor-pointer items-center justify-center rounded-full border border-black/15 px-4 text-sm font-medium dark:border-white/20">
+              Add without enhancing
+              <input
+                ref={skipInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleSkipFileChange}
+              />
+            </label>
           </div>
         </div>
       )}
@@ -116,7 +156,9 @@ export function ImageEnhancer({ onResolved }: { onResolved: (image: ResolvedImag
         <div className="flex items-center gap-3 py-4">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-black/20 border-t-black dark:border-white/20 dark:border-t-white" />
           <p className="text-sm text-black/60 dark:text-white/60">
-            Sending to Gemini ({tier === "primary" ? "Nano Banana Pro" : "Nano Banana 2"})…
+            {isSkipUpload
+              ? "Uploading…"
+              : `Sending to Gemini (${tier === "primary" ? "Nano Banana Pro" : "Nano Banana 2"})…`}
           </p>
         </div>
       )}

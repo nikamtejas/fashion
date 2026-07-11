@@ -1,29 +1,8 @@
 import type { Request, Response } from "express";
-import { ProductModel, type Product } from "../models/Product.js";
+import { ProductModel } from "../models/Product.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-
-type ProductDoc = Product & { _id: unknown };
-
-function toPublicProduct(product: ProductDoc) {
-  return {
-    id: String(product._id),
-    name: product.name,
-    slug: product.slug,
-    description: product.description,
-    category: product.category,
-    tags: product.tags,
-    // Only the customer-facing final price is ever exposed here — the cost/margin/GST
-    // breakdown in pricing{} is internal business data and must never leak publicly.
-    price: product.pricing.finalPrice,
-    stock: product.stock,
-    variants: product.variants.map((v) => ({ size: v.size, color: v.color, stock: v.stock })),
-    images: product.images.map((img) => ({
-      url: img.status === "accepted" ? img.enhancedUrl : img.originalUrl,
-      isPrimary: img.isPrimary,
-    })),
-  };
-}
+import { toPublicProduct } from "../utils/publicProduct.js";
 
 export const listPublicProducts = asyncHandler(async (req: Request, res: Response) => {
   const page = Math.max(1, Number(req.query.page) || 1);

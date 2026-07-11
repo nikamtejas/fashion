@@ -20,6 +20,7 @@ export interface ProductImage {
   geminiModel?: string;
   status: ImageStatus;
   isPrimary: boolean;
+  color?: string;
 }
 
 export interface Product {
@@ -94,10 +95,11 @@ export interface EnhanceImageResult {
   enhanceError?: string;
 }
 
-export function enhanceImage(file: File, tier: "primary" | "fast") {
+export function enhanceImage(file: File, tier: "primary" | "fast", skipEnhance = false) {
   const formData = new FormData();
   formData.append("image", file);
   formData.append("tier", tier);
+  if (skipEnhance) formData.append("skipEnhance", "true");
   return apiFetch<EnhanceImageResult>("/api/admin/images/enhance", {
     method: "POST",
     body: formData,
