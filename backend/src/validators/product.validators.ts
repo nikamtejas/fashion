@@ -17,6 +17,18 @@ const productImageSchema = z.object({
   isPrimary: z.boolean().default(false),
 });
 
+// Only the raw inputs are accepted from the client — baseCost/marginAmount/preTaxPrice/
+// gstRate/gstAmount/finalPrice are always recomputed server-side (see computePricing),
+// never trusted from the request body.
+const pricingInputSchema = z.object({
+  purchasePrice: z.coerce.number().min(0),
+  fixedCost: z.coerce.number().min(0),
+  marginPct: z.coerce.number().min(0),
+  gstThreshold: z.coerce.number().min(0),
+  gstRateLow: z.coerce.number().min(0).max(100),
+  gstRateHigh: z.coerce.number().min(0).max(100),
+});
+
 const productBaseSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(5000).optional(),
@@ -24,7 +36,7 @@ const productBaseSchema = z.object({
   tags: z.array(z.string().trim().min(1)).default([]),
   stock: z.coerce.number().int().min(0).default(0),
   variants: z.array(variantSchema).default([]),
-  price: z.coerce.number().min(0),
+  pricing: pricingInputSchema,
   images: z.array(productImageSchema).default([]),
   status: z.enum(["draft", "published"]).default("draft"),
 });

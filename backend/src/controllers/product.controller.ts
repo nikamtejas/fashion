@@ -13,7 +13,9 @@ function toPublicProduct(product: ProductDoc) {
     description: product.description,
     category: product.category,
     tags: product.tags,
-    price: product.price,
+    // Only the customer-facing final price is ever exposed here — the cost/margin/GST
+    // breakdown in pricing{} is internal business data and must never leak publicly.
+    price: product.pricing.finalPrice,
     stock: product.stock,
     variants: product.variants.map((v) => ({ size: v.size, color: v.color, stock: v.stock })),
     images: product.images.map((img) => ({

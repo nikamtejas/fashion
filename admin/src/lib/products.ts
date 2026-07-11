@@ -1,4 +1,5 @@
 import { apiFetch } from "./api";
+import type { PricingBreakdown, PricingInput } from "./pricing";
 
 export type ImageStatus = "accepted" | "original";
 
@@ -30,7 +31,7 @@ export interface Product {
   tags: string[];
   stock: number;
   variants: ProductVariant[];
-  price: number;
+  pricing: PricingBreakdown;
   images: ProductImage[];
   status: "draft" | "published";
   createdAt: string;
@@ -44,7 +45,7 @@ export interface ProductInput {
   tags: string[];
   stock: number;
   variants: Omit<ProductVariant, "_id">[];
-  price: number;
+  pricing: PricingInput;
   images: Omit<ProductImage, "_id">[];
   status: "draft" | "published";
 }

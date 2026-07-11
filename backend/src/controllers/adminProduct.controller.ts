@@ -6,6 +6,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { destroyImage } from "../services/cloudinary.service.js";
 import { revalidateStorefront } from "../services/revalidate.service.js";
+import { computePricing } from "../utils/pricing.js";
 
 async function uniqueSlug(name: string, excludeId?: string): Promise<string> {
   const base = slugify(name) || "product";
@@ -51,7 +52,11 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
   const input = createProductSchema.parse(req.body);
   assertPublishable(input);
   const slug = await uniqueSlug(input.name);
-  const product = await ProductModel.create({ ...input, slug });
+  // Derived pricing fields (baseCost, gstAmount, finalPrice, ...) are always computed
+  // here from the raw inputs — never trusted from the client, even though the admin
+  // UI shows a live preview of the same math for immediate feedback.
+  const pricing = computePricing(input.pricing);
+  const product = await ProductModel.create({ ...input, pricing, slug });
   await revalidateStorefront(product.slug);
   res.status(201).json({ product });
 });
@@ -61,7 +66,11 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
   const product = await ProductModel.findById(req.params.id);
   if (!product) throw new ApiError(404, "Product not found");
 
-  Object.assign(product, input);
+  const { pricing: pricingInput, ...rest } = input;
+  Object.assign(product, rest);
+  if (pricingInput) {
+    product.pricing = computePricing(pricingInput);
+  }
   if (input.name && input.name !== product.name) {
     product.slug = await uniqueSlug(input.name, String(product._id));
   }

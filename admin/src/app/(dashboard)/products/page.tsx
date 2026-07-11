@@ -114,7 +114,7 @@ export default function ProductsPage() {
                   <td className="py-2 pr-3 font-medium">{product.name}</td>
                   <td className="py-2 pr-3 text-black/70 dark:text-white/70">{product.category}</td>
                   <td className="py-2 pr-3">{product.stock}</td>
-                  <td className="py-2 pr-3">₹{product.price}</td>
+                  <td className="py-2 pr-3">₹{product.pricing.finalPrice.toFixed(2)}</td>
                   <td className="py-2 pr-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${

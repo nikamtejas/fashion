@@ -26,6 +26,30 @@ const productImageSchema = new Schema(
   { _id: true }
 );
 
+// Every component is stored, not just finalPrice, so margins can be recalculated
+// later even if GST rates change (SPEC.md §4.2). gstRateLow/gstRateHigh/gstThreshold
+// are snapshotted at save time from admin input (pre-filled from Settings for new
+// products) so a later change to the store-wide defaults doesn't retroactively alter
+// this product's historical pricing.
+const pricingSchema = new Schema(
+  {
+    purchasePrice: { type: Number, required: true, min: 0 },
+    fixedCost: { type: Number, required: true, min: 0 },
+    marginPct: { type: Number, required: true, min: 0 },
+    gstThreshold: { type: Number, required: true, min: 0 },
+    gstRateLow: { type: Number, required: true, min: 0, max: 100 },
+    gstRateHigh: { type: Number, required: true, min: 0, max: 100 },
+    // Derived — recomputed server-side from the fields above on every save.
+    baseCost: { type: Number, required: true, min: 0 },
+    marginAmount: { type: Number, required: true, min: 0 },
+    preTaxPrice: { type: Number, required: true, min: 0 },
+    gstRate: { type: Number, required: true, min: 0, max: 100 },
+    gstAmount: { type: Number, required: true, min: 0 },
+    finalPrice: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+);
+
 const productSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -35,10 +59,7 @@ const productSchema = new Schema(
     tags: { type: [String], default: [] },
     stock: { type: Number, required: true, min: 0, default: 0 },
     variants: { type: [variantSchema], default: [] },
-    // M2 placeholder for a manually-entered price. Milestone 3 replaces this with a
-    // computed pricing breakdown (purchasePrice, fixedCost, marginPct, GST, finalPrice)
-    // stored as its own sub-document, per SPEC.md §4.2/§5.
-    price: { type: Number, required: true, min: 0 },
+    pricing: { type: pricingSchema, required: true },
     images: { type: [productImageSchema], default: [] },
     status: { type: String, enum: ["draft", "published"], default: "draft", required: true },
   },

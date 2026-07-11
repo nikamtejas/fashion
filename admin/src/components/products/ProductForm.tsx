@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageEnhancer, type ResolvedImage } from "./ImageEnhancer";
+import { PricingCalculator } from "./PricingCalculator";
 import type { Product, ProductInput, ProductVariant } from "@/lib/products";
+import type { PricingInput } from "@/lib/pricing";
+import { getSettings } from "@/lib/settings";
 import { ApiRequestError } from "@/lib/api";
 
 interface GalleryImage extends ResolvedImage {
@@ -36,7 +39,18 @@ export function ProductForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [tags, setTags] = useState(initial?.tags.join(", ") ?? "");
   const [stock, setStock] = useState(String(initial?.stock ?? 0));
-  const [price, setPrice] = useState(String(initial?.price ?? ""));
+  const [pricing, setPricing] = useState<PricingInput>(
+    initial
+      ? {
+          purchasePrice: initial.pricing.purchasePrice,
+          fixedCost: initial.pricing.fixedCost,
+          marginPct: initial.pricing.marginPct,
+          gstThreshold: initial.pricing.gstThreshold,
+          gstRateLow: initial.pricing.gstRateLow,
+          gstRateHigh: initial.pricing.gstRateHigh,
+        }
+      : { purchasePrice: 0, fixedCost: 0, marginPct: 0, gstThreshold: 0, gstRateLow: 0, gstRateHigh: 0 }
+  );
   const [variants, setVariants] = useState<Omit<ProductVariant, "_id">[]>(
     initial?.variants.map((v) => ({ size: v.size, color: v.color, sku: v.sku, stock: v.stock })) ?? []
   );
@@ -44,6 +58,23 @@ export function ProductForm({
   const [status, setStatus] = useState<"draft" | "published">(initial?.status ?? "draft");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initial) return; // editing an existing product keeps its own snapshotted GST values
+    getSettings()
+      .then(({ settings }) => {
+        setPricing((prev) => ({
+          ...prev,
+          gstThreshold: settings.gstThreshold,
+          gstRateLow: settings.gstRateLow,
+          gstRateHigh: settings.gstRateHigh,
+        }));
+      })
+      .catch(() => {
+        // Non-fatal — admin can still type GST values manually.
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount for new products only
+  }, []);
 
   function addVariant() {
     setVariants((prev) => [...prev, { size: "", color: "", sku: "", stock: 0 }]);
@@ -95,7 +126,7 @@ export function ProductForm({
           .map((t) => t.trim())
           .filter(Boolean),
         stock: Number(stock) || 0,
-        price: Number(price) || 0,
+        pricing,
         variants,
         images: images.map(({ originalPublicId, originalUrl, enhancedPublicId, enhancedUrl, geminiModel, status: imgStatus, isPrimary }) => ({
           originalPublicId,
@@ -174,21 +205,11 @@ export function ProductForm({
           />
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Price (₹)
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            required
-            className="h-11 rounded-lg border border-black/15 bg-transparent px-3 text-sm outline-none focus:border-black dark:border-white/20 dark:focus:border-white"
-          />
-          <span className="text-xs font-normal text-black/50 dark:text-white/50">
-            Manual for now — the full pricing calculator arrives in Milestone 3.
-          </span>
-        </label>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Pricing</h2>
+        <PricingCalculator value={pricing} onChange={setPricing} />
       </section>
 
       <section>

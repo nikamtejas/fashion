@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { href: "/products", label: "Products" },
   { href: "/orders", label: "Orders" },
   { href: "/coupons", label: "Coupons" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function DashboardShell({ children }: { children: ReactNode }) {
