@@ -4,7 +4,7 @@ import { env } from "./config/env";
 import { sweepAppointments } from "./lib/appointments";
 import { releaseStaleReservations } from "./services/order.service";
 import { advanceMockShipments } from "./services/shipment.service";
-import { INTEGRATIONS_MOCK } from "./lib/integrations";
+import { serviceMock } from "./lib/integrations";
 
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 const MOCK_SHIPMENT_TICK_MS = 30 * 1000;
@@ -27,7 +27,7 @@ async function main() {
   // MOCK shipment simulator: every active parcel advances one checkpoint
   // per tick so tracking/returns/refunds are demoable without Blue Dart.
   // (Live mode would instead poll the Blue Dart tracking API every 15-30min.)
-  if (INTEGRATIONS_MOCK) {
+  if (serviceMock("BLUEDART")) {
     setInterval(() => {
       advanceMockShipments().catch((err) => console.error("mock shipment tick failed:", err));
     }, MOCK_SHIPMENT_TICK_MS).unref();

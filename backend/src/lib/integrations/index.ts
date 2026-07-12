@@ -1,5 +1,14 @@
 export const INTEGRATIONS_MOCK = process.env.INTEGRATIONS_MOCK !== "false";
 
+/** Per-service override: e.g. RAZORPAY_MOCK=false takes just Razorpay live
+ * (real test keys) while INTEGRATIONS_MOCK keeps the rest mocked. */
+export function serviceMock(name: "RAZORPAY" | "BLUEDART" | "SNAPMINT" | "GEMINI" | "PINCODE"): boolean {
+  const flag = process.env[`${name}_MOCK`];
+  if (flag === "false") return false;
+  if (flag === "true") return true;
+  return INTEGRATIONS_MOCK;
+}
+
 export function logIntegrationCall(service: string, action: string, payload?: unknown) {
   const tag = INTEGRATIONS_MOCK ? "MOCK" : "LIVE";
   // eslint-disable-next-line no-console

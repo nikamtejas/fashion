@@ -103,7 +103,7 @@ router.get("/:key", async (req, res) => {
     orderNumber: order.orderNumber,
     status: order.status,
     awbNumber: shipment.awbNumber,
-    courier: "Blue Dart",
+    courier: "Blue Dart (DHL)",
     events: events.map((e) => ({
       status: e.status,
       location: e.location,

@@ -1,4 +1,8 @@
-import { INTEGRATIONS_MOCK, logIntegrationCall, withTimeout } from "./index";
+import { logIntegrationCall, serviceMock, withTimeout } from "./index";
+
+// India Post + Nominatim are free public APIs (no credentials), so pincode
+// lookups can go live independently of the global flag (PINCODE_MOCK=false).
+const PINCODE_MOCK = serviceMock("PINCODE");
 
 export interface PincodeInfo {
   city: string;
@@ -33,15 +37,19 @@ function hashJitter(pincode: string): number {
 /** City/state autofill from a pincode. Mock keys off the first digit
  * (India's real postal-circle structure); live mode uses India Post's
  * free API. */
+const lookupCache = new Map<string, PincodeInfo | null>();
+const geocodeCache = new Map<string, GeoPoint | null>();
+
 export async function lookupPincode(pincode: string): Promise<PincodeInfo | null> {
-  logIntegrationCall("pincode", "lookup", { pincode, mock: INTEGRATIONS_MOCK });
+  logIntegrationCall("pincode", "lookup", { pincode, mock: PINCODE_MOCK });
   if (!/^\d{6}$/.test(pincode)) return null;
 
-  if (INTEGRATIONS_MOCK) {
+  if (PINCODE_MOCK) {
     const anchor = ANCHORS[pincode[0]];
     return anchor ? { city: anchor.city, state: anchor.state } : null;
   }
 
+  if (lookupCache.has(pincode)) return lookupCache.get(pincode)!;
   const res = await withTimeout(
     fetch(`https://api.postalpincode.in/pincode/${pincode}`),
     8000,
@@ -49,22 +57,25 @@ export async function lookupPincode(pincode: string): Promise<PincodeInfo | null
   );
   const data = (await res.json()) as { Status: string; PostOffice?: { District: string; State: string }[] }[];
   const office = data?.[0]?.PostOffice?.[0];
-  return office ? { city: office.District, state: office.State } : null;
+  const info = office ? { city: office.District, state: office.State } : null;
+  lookupCache.set(pincode, info);
+  return info;
 }
 
 /** Rough geocode of a pincode for nearest-store math. Mock is anchored to
  * the pincode's postal circle with a deterministic jitter; live mode uses
  * OpenStreetMap Nominatim. */
 export async function geocodePincode(pincode: string): Promise<GeoPoint | null> {
-  logIntegrationCall("pincode", "geocode", { pincode, mock: INTEGRATIONS_MOCK });
+  logIntegrationCall("pincode", "geocode", { pincode, mock: PINCODE_MOCK });
   if (!/^\d{6}$/.test(pincode)) return null;
 
-  if (INTEGRATIONS_MOCK) {
+  if (PINCODE_MOCK) {
     const anchor = ANCHORS[pincode[0]];
     if (!anchor) return null;
     return { lat: anchor.lat + hashJitter(pincode), lng: anchor.lng + hashJitter(pincode.split("").reverse().join("")) };
   }
 
+  if (geocodeCache.has(pincode)) return geocodeCache.get(pincode)!;
   const res = await withTimeout(
     fetch(`https://nominatim.openstreetmap.org/search?postalcode=${pincode}&country=india&format=json&limit=1`, {
       headers: { "User-Agent": "LuxeLoom/1.0" },
@@ -73,6 +84,7 @@ export async function geocodePincode(pincode: string): Promise<GeoPoint | null> 
     "pincode:geocode"
   );
   const data = (await res.json()) as { lat: string; lon: string }[];
-  if (!data[0]) return null;
-  return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+  const point = data[0] ? { lat: Number(data[0].lat), lng: Number(data[0].lon) } : null;
+  geocodeCache.set(pincode, point);
+  return point;
 }

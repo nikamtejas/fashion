@@ -51,13 +51,31 @@ router.get("/", async (req, res) => {
   const rangeRevenue = sum(rangeOrders);
   const avgOrderValue = orderCount ? round2(rangeRevenue / orderCount) : 0;
 
+  // Everything below only depends on rangeOrders, so hit Atlas once in
+  // parallel instead of paying a round trip per query.
+  const productIds = [...new Set(rangeOrders.flatMap((o) => o.items.map((i) => String(i.product))))];
+  const [products, refunds, customerCount, funnelAgg, recentOrders, lowStockProducts, pendingPickups, pendingRefunds] =
+    await Promise.all([
+      Product.find({ _id: { $in: productIds } })
+        .select("pricing.profitPerUnit category name")
+        .populate("category", "name")
+        .lean(),
+      RefundRequest.find({ status: "REFUNDED", updatedAt: { $gte: from, $lte: to } })
+        .select("refundAmount")
+        .lean(),
+      User.countDocuments({ role: "CUSTOMER" }),
+      Order.aggregate([
+        { $match: { createdAt: { $gte: from, $lte: to } } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      Order.find().sort({ createdAt: -1 }).limit(6).populate("user", "email").select("orderNumber status pricing.total createdAt user").lean(),
+      Product.find({ status: "PUBLISHED", "variants.stock": { $lt: 5 } }).select("name slug variants").limit(20).lean(),
+      PickupAppointment.countDocuments({ status: { $in: ["BOOKED", "READY"] } }),
+      RefundRequest.countDocuments({ status: { $in: ["REQUESTED", "APPROVED", "ITEM_PICKED_UP", "RECEIVED"] } }),
+    ]);
+
   // True profit from the M3 breakdown stored on each product, minus the
   // coupon discounts given in the range.
-  const productIds = [...new Set(rangeOrders.flatMap((o) => o.items.map((i) => String(i.product))))];
-  const products = await Product.find({ _id: { $in: productIds } })
-    .select("pricing.profitPerUnit category name")
-    .populate("category", "name")
-    .lean();
   const profitBySku = new Map(products.map((p) => [String(p._id), p.pricing?.profitPerUnit ?? 0]));
   let grossProfit = 0;
   let discountGiven = 0;
@@ -68,14 +86,10 @@ router.get("/", async (req, res) => {
   const trueProfit = round2(grossProfit - discountGiven);
 
   // Refund rate: refunded value ÷ range revenue.
-  const refunds = await RefundRequest.find({ status: "REFUNDED", updatedAt: { $gte: from, $lte: to } })
-    .select("refundAmount")
-    .lean();
   const refundedValue = round2(refunds.reduce((s, r) => s + (r.refundAmount ?? 0), 0));
   const refundRate = rangeRevenue > 0 ? round2((refundedValue / rangeRevenue) * 100) : 0;
 
   // Honest proxy — there's no visitor analytics yet.
-  const customerCount = await User.countDocuments({ role: "CUSTOMER" });
   const ordersPerCustomer = customerCount ? round2(orderCount / customerCount) : 0;
 
   // Daily revenue series (also used for sparklines).
@@ -123,10 +137,6 @@ router.get("/", async (req, res) => {
   const paymentSeries = [...byMethod.entries()].map(([method, revenue]) => ({ method, revenue }));
 
   // Order-status funnel (range, all statuses).
-  const funnelAgg = await Order.aggregate([
-    { $match: { createdAt: { $gte: from, $lte: to } } },
-    { $group: { _id: "$status", count: { $sum: 1 } } },
-  ]);
   const FUNNEL = ["PLACED", "CONFIRMED", "PACKED", "PICKUP_SCHEDULED", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"];
   const funnelMap = new Map(funnelAgg.map((f) => [f._id as string, f.count as number]));
   // Each stage counts orders that reached it or beyond.
@@ -136,13 +146,6 @@ router.get("/", async (req, res) => {
   }));
 
   // Live feeds.
-  const [recentOrders, lowStockProducts, pendingPickups, pendingRefunds] = await Promise.all([
-    Order.find().sort({ createdAt: -1 }).limit(6).populate("user", "email").select("orderNumber status pricing.total createdAt user").lean(),
-    Product.find({ status: "PUBLISHED", "variants.stock": { $lt: 5 } }).select("name slug variants").limit(20).lean(),
-    PickupAppointment.countDocuments({ status: { $in: ["BOOKED", "READY"] } }),
-    RefundRequest.countDocuments({ status: { $in: ["REQUESTED", "APPROVED", "ITEM_PICKED_UP", "RECEIVED"] } }),
-  ]);
-
   const lowStock = lowStockProducts
     .flatMap((p) => p.variants.filter((v) => v.stock < 5).map((v) => ({ name: p.name, slug: p.slug, sku: v.sku, size: v.size, color: v.color, stock: v.stock })))
     .slice(0, 12);

@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import { env } from "../../config/env";
-import { INTEGRATIONS_MOCK, logIntegrationCall, withTimeout } from "./index";
+import { logIntegrationCall, serviceMock, withTimeout } from "./index";
+
+/** Razorpay honors its own mock flag so real test keys can be used while
+ * other integrations stay mocked (RAZORPAY_MOCK=false in .env). */
+export const RAZORPAY_MOCK = serviceMock("RAZORPAY");
 
 // Implemented against Razorpay's REST API directly (basic auth + HMAC
 // signatures) rather than their SDK — the signature math is standard
@@ -21,10 +25,10 @@ export interface RazorpayOrder {
 
 /** Creates a Razorpay order for the given rupee amount. */
 export async function createRazorpayOrder(amountRupees: number, receipt: string): Promise<RazorpayOrder> {
-  logIntegrationCall("razorpay", "createOrder", { amountRupees, receipt, mock: INTEGRATIONS_MOCK });
+  logIntegrationCall("razorpay", "createOrder", { amountRupees, receipt, mock: RAZORPAY_MOCK });
   const amountPaise = Math.round(amountRupees * 100);
 
-  if (INTEGRATIONS_MOCK) {
+  if (RAZORPAY_MOCK) {
     return {
       id: `order_MOCK${crypto.randomBytes(6).toString("hex")}`,
       amount: amountPaise,
@@ -80,8 +84,8 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
 
 /** Refund wrapper — wired for Milestone 6's returns flow. */
 export async function refundPayment(paymentId: string, amountRupees: number): Promise<{ refundId: string }> {
-  logIntegrationCall("razorpay", "refund", { paymentId, amountRupees, mock: INTEGRATIONS_MOCK });
-  if (INTEGRATIONS_MOCK) {
+  logIntegrationCall("razorpay", "refund", { paymentId, amountRupees, mock: RAZORPAY_MOCK });
+  if (RAZORPAY_MOCK) {
     return { refundId: `rfnd_MOCK${crypto.randomBytes(6).toString("hex")}` };
   }
   const res = await withTimeout(

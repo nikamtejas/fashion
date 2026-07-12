@@ -39,8 +39,10 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const [selectedSize, setSelectedSize] = React.useState<string | null>(sizes[0] ?? null);
   const [selectedColor, setSelectedColor] = React.useState<string | null>(colors[0]?.[0] ?? null);
 
-  const galleryImages = [...product.images]
-    .filter((img) => img.type !== "ORIGINAL")
+  // Prefer AI-enhanced shots, but fall back to the original photos —
+  // seeded products only have ORIGINAL images.
+  const enhanced = product.images.filter((img) => img.type !== "ORIGINAL");
+  const galleryImages = [...(enhanced.length > 0 ? enhanced : product.images)]
     .sort((a, b) => a.order - b.order)
     .map((img) => ({ url: img.url, altText: img.altText, type: img.type }));
 

@@ -5,7 +5,7 @@ import { Order } from "../models/Order";
 import { RefundRequest } from "../models/RefundRequest";
 import { generateWaybill, registerPickup, checkServiceability } from "../lib/integrations/bluedart";
 import { geocodePincode } from "../lib/integrations/pincode";
-import { INTEGRATIONS_MOCK } from "../lib/integrations";
+import { serviceMock } from "../lib/integrations";
 import { notifyUser } from "./notify.service";
 import { HttpError } from "./order.service";
 import { processRefund } from "./returns.service";
@@ -256,7 +256,9 @@ const REVERSE_STEPS: SimStep[] = [
 ];
 
 export async function advanceMockShipments() {
-  if (!INTEGRATIONS_MOCK) return;
+  // Keyed to the Blue Dart mock specifically: the simulator must keep
+  // driving realtime tracking even when other services (Razorpay) go live.
+  if (!serviceMock("BLUEDART")) return;
 
   const active = await Shipment.find({
     status: { $in: ["PICKUP_SCHEDULED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"] },

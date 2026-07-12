@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import QRCode from "react-qr-code";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
@@ -47,7 +48,17 @@ export function ReturnCard({ refund }: { refund: ReturnView }) {
           </p>
           <p className="mt-0.5 text-xs text-foreground/50">
             {refund.method === "STORE" ? `Store drop-off — ${refund.store?.name ?? ""}` : "Courier reverse pickup"}
-            {refund.reverseShipment?.awbNumber ? ` · AWB ${refund.reverseShipment.awbNumber}` : ""}
+            {refund.reverseShipment?.awbNumber && (
+              <>
+                {" · "}
+                <Link
+                  href={`/track/${refund.reverseShipment.awbNumber}`}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  Track pickup — AWB {refund.reverseShipment.awbNumber}
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <Badge variant={refund.status === "REFUNDED" ? "success" : rejected ? "default" : "accent"}>

@@ -61,6 +61,7 @@ const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function AdminDashboardPage() {
   const [data, setData] = React.useState<DashboardData | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
   const [from, setFrom] = React.useState(() => new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10));
   const [to, setTo] = React.useState(() => new Date().toISOString().slice(0, 10));
 
@@ -68,8 +69,30 @@ export default function AdminDashboardPage() {
     // Refetch on range change; setState in the async callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setData(null);
-    apiFetch<DashboardData>(`/api/admin/dashboard?from=${from}&to=${to}`).then(setData);
+    setError(null);
+    apiFetch<DashboardData>(`/api/admin/dashboard?from=${from}&to=${to}`)
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load the dashboard"));
   }, [from, to]);
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-border p-8 text-center">
+        <p className="text-sm text-foreground/60">Couldn&rsquo;t load the dashboard — {error}</p>
+        <button
+          onClick={() => {
+            setError(null);
+            apiFetch<DashboardData>(`/api/admin/dashboard?from=${from}&to=${to}`)
+              .then(setData)
+              .catch((err) => setError(err instanceof Error ? err.message : "Couldn't load the dashboard"));
+          }}
+          className="mt-3 text-xs text-accent underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (!data) {
     return (

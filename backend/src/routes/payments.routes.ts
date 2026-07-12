@@ -15,6 +15,7 @@ import {
   createRazorpayOrder,
   verifyPaymentSignature,
   mockSignPayment,
+  RAZORPAY_MOCK,
 } from "../lib/integrations/razorpay";
 import { computeEmiPlans, createSnapmintOrder, EMI_TENURES, type EmiTenure } from "../lib/integrations/snapmint";
 import { INTEGRATIONS_MOCK } from "../lib/integrations";
@@ -128,7 +129,7 @@ router.post("/razorpay/initiate", async (req, res) => {
       orderId: String(order._id),
       orderNumber: order.orderNumber,
       razorpay: { orderId: rzpOrder.id, keyId: rzpOrder.keyId, amount: rzpOrder.amount, currency: rzpOrder.currency },
-      mock: INTEGRATIONS_MOCK,
+      mock: RAZORPAY_MOCK,
     });
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
@@ -139,7 +140,7 @@ router.post("/razorpay/initiate", async (req, res) => {
 /** MOCK-only: mints a payment id + valid signature so the dev checkout can
  * exercise the real verification path without Razorpay's hosted UI. */
 router.post("/razorpay/mock-pay/:orderId", async (req, res) => {
-  if (!INTEGRATIONS_MOCK) return res.status(404).json({ error: "Not available in live mode" });
+  if (!RAZORPAY_MOCK) return res.status(404).json({ error: "Not available in live mode" });
   try {
     const order = await loadOwnOrder(req.params.orderId, req.user!.uid);
     const payment = await Payment.findOne({ order: order._id });
@@ -424,7 +425,7 @@ router.post("/retry/:orderId", async (req, res) => {
       return res.json({
         orderId: String(order._id),
         razorpay: { orderId: rzpOrder.id, keyId: rzpOrder.keyId, amount: rzpOrder.amount, currency: rzpOrder.currency },
-        mock: INTEGRATIONS_MOCK,
+        mock: RAZORPAY_MOCK,
       });
     }
 

@@ -17,6 +17,8 @@ interface AdminStore {
   };
 }
 
+const EMPTY_STORE = { name: "", address: "", city: "", state: "", pincode: "", phone: "", lat: "", lng: "" };
+
 const DEFAULT_CONFIG = {
   windows: [
     { start: "10:00", end: "12:00" },
@@ -33,10 +35,51 @@ export default function AdminStoresPage() {
   const { toast } = useToast();
   const [stores, setStores] = React.useState<AdminStore[] | null>(null);
   const [saving, setSaving] = React.useState<string | null>(null);
+  const [form, setForm] = React.useState(EMPTY_STORE);
+  const [creating, setCreating] = React.useState(false);
 
   React.useEffect(() => {
-    apiFetch<{ stores: AdminStore[] }>("/api/admin/stores").then((data) => setStores(data.stores));
+    apiFetch<{ stores: AdminStore[] }>("/api/admin/stores")
+      .then((data) => setStores(data.stores))
+      .catch((err) => {
+        setStores([]);
+        toast({ title: "Couldn't load stores", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function createStore() {
+    setCreating(true);
+    try {
+      const data = await apiFetch<{ store: AdminStore }>("/api/admin/stores", {
+        method: "POST",
+        json: {
+          name: form.name.trim(),
+          address: form.address.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
+          pincode: form.pincode.trim(),
+          phone: form.phone.trim() || undefined,
+          lat: form.lat.trim() ? Number(form.lat) : undefined,
+          lng: form.lng.trim() ? Number(form.lng) : undefined,
+        },
+      });
+      setStores((prev) => [...(prev ?? []), data.store]);
+      setForm(EMPTY_STORE);
+      toast({ title: `${data.store.name} added`, description: "It now appears in nearest-store search.", variant: "success" });
+    } catch (err) {
+      toast({ title: "Couldn't add store", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const canCreate =
+    form.name.trim().length >= 2 &&
+    form.address.trim().length >= 3 &&
+    form.city.trim().length >= 2 &&
+    form.state.trim().length >= 2 &&
+    /^\d{6}$/.test(form.pincode.trim());
 
   function update(storeId: string, patch: (c: NonNullable<AdminStore["pickupConfig"]>) => NonNullable<AdminStore["pickupConfig"]>) {
     setStores(
@@ -62,10 +105,32 @@ export default function AdminStoresPage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl">Store pickup slots</h1>
+      <h1 className="font-display text-2xl">Stores</h1>
+
+      <div className="mt-6 rounded-2xl border border-border p-5">
+        <p className="text-sm font-medium">Add a store</p>
+        <p className="mt-0.5 text-xs text-foreground/50">
+          Leave latitude/longitude blank to locate it automatically from the pincode.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StoreField label="Name" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="LuxeLoom Pune" />
+          <StoreField label="Address" value={form.address} onChange={(v) => setForm((f) => ({ ...f, address: v }))} placeholder="12 MG Road" />
+          <StoreField label="City" value={form.city} onChange={(v) => setForm((f) => ({ ...f, city: v }))} placeholder="Pune" />
+          <StoreField label="State" value={form.state} onChange={(v) => setForm((f) => ({ ...f, state: v }))} placeholder="Maharashtra" />
+          <StoreField label="Pincode" value={form.pincode} onChange={(v) => setForm((f) => ({ ...f, pincode: v }))} placeholder="411001" maxLength={6} />
+          <StoreField label="Phone (optional)" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} placeholder="+91 …" />
+          <StoreField label="Latitude (optional)" value={form.lat} onChange={(v) => setForm((f) => ({ ...f, lat: v }))} placeholder="18.5204" />
+          <StoreField label="Longitude (optional)" value={form.lng} onChange={(v) => setForm((f) => ({ ...f, lng: v }))} placeholder="73.8567" />
+        </div>
+        <Button size="sm" className="mt-4" magnetic={false} disabled={!canCreate || creating} onClick={createStore}>
+          <Plus className="h-3.5 w-3.5" /> {creating ? "Adding…" : "Add store"}
+        </Button>
+      </div>
+
+      <h2 className="mt-10 font-display text-xl">Pickup slots</h2>
       {stores === null && <p className="mt-8 text-sm text-foreground/50">Loading stores…</p>}
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {stores?.map((store) => {
           const config = store.pickupConfig ?? DEFAULT_CONFIG;
           return (
@@ -149,6 +214,33 @@ export default function AdminStoresPage() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function StoreField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  maxLength,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+}) {
+  return (
+    <div>
+      <label className="text-[10px] font-medium uppercase tracking-wider text-foreground/50">{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        className="mt-1 h-9 w-full rounded-lg border border-border bg-surface px-2 text-sm"
+      />
     </div>
   );
 }
