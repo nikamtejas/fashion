@@ -2,7 +2,7 @@ export const INTEGRATIONS_MOCK = process.env.INTEGRATIONS_MOCK !== "false";
 
 /** Per-service override: e.g. RAZORPAY_MOCK=false takes just Razorpay live
  * (real test keys) while INTEGRATIONS_MOCK keeps the rest mocked. */
-export function serviceMock(name: "RAZORPAY" | "BLUEDART" | "SNAPMINT" | "GEMINI" | "PINCODE"): boolean {
+export function serviceMock(name: "RAZORPAY" | "BLUEDART" | "SNAPMINT" | "GEMINI" | "PINCODE" | "EMAIL"): boolean {
   const flag = process.env[`${name}_MOCK`];
   if (flag === "false") return false;
   if (flag === "true") return true;

@@ -115,6 +115,39 @@ router.get("/google/callback", async (req, res) => {
   }
 });
 
+/** Admin bootstrap: creates (or promotes) an ADMIN account for the given
+ * email. Guarded by ADMIN_SETUP_KEY from the backend environment — the
+ * route is disabled entirely when the key isn't set. The account still
+ * logs in normally via email OTP; this only grants the role. */
+router.post("/admin/setup", async (req, res) => {
+  const parsed = z.object({ email: z.string().email(), key: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Provide an email and the admin setup key" });
+  }
+  if (!env.adminSetupKey) {
+    return res.status(404).json({ error: "Admin setup is disabled — set ADMIN_SETUP_KEY in the backend .env" });
+  }
+  const supplied = Buffer.from(parsed.data.key);
+  const expected = Buffer.from(env.adminSetupKey);
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    return res.status(403).json({ error: "Invalid setup key" });
+  }
+
+  const email = parsed.data.email.toLowerCase().trim();
+  let user = await User.findOne({ email });
+  if (!user) {
+    user = await User.create({ email, role: "ADMIN", emailVerified: new Date() });
+  } else if (user.role !== "ADMIN") {
+    user.role = "ADMIN";
+    await user.save();
+  }
+
+  res.json({
+    user: { id: user._id.toString(), email: user.email, role: user.role },
+    note: "Account has the ADMIN role — log in with the email OTP as usual.",
+  });
+});
+
 router.post("/logout", (_req, res) => {
   res.clearCookie(env.cookieName);
   res.json({ ok: true });

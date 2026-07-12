@@ -88,3 +88,26 @@ export async function geocodePincode(pincode: string): Promise<GeoPoint | null> 
   geocodeCache.set(pincode, point);
   return point;
 }
+
+/** Free-text geocode of a full street address (Nominatim). More precise than
+ * the pincode centroid when it resolves; callers should fall back to
+ * geocodePincode when it returns null. Mock mode always returns null. */
+export async function geocodeAddress(query: string): Promise<GeoPoint | null> {
+  logIntegrationCall("pincode", "geocodeAddress", { query, mock: PINCODE_MOCK });
+  if (PINCODE_MOCK) return null;
+
+  const key = `addr:${query.toLowerCase()}`;
+  if (geocodeCache.has(key)) return geocodeCache.get(key)!;
+  const res = await withTimeout(
+    fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=in&format=json&limit=1`,
+      { headers: { "User-Agent": "LuxeLoom/1.0" } }
+    ),
+    8000,
+    "pincode:geocodeAddress"
+  );
+  const data = (await res.json()) as { lat: string; lon: string }[];
+  const point = data[0] ? { lat: Number(data[0].lat), lng: Number(data[0].lon) } : null;
+  geocodeCache.set(key, point);
+  return point;
+}

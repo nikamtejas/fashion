@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Truck, Store as StoreIcon, MapPin, Clock } from "lucide-react";
+import { Truck, Store as StoreIcon, MapPin, Clock, LocateFixed } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -50,22 +50,44 @@ export function ReturnRequestModal({
   const [slot, setSlot] = React.useState<{ date: string; timeSlot: string } | undefined>();
   const [bank, setBank] = React.useState({ accountName: "", accountNumber: "", ifsc: "" });
   const [busy, setBusy] = React.useState(false);
+  const [locating, setLocating] = React.useState(false);
 
   const selectedItems = Object.entries(qtyBySku)
     .filter(([, qty]) => qty > 0)
     .map(([sku, qty]) => ({ sku, qty }));
   const isCod = paymentMethod === "COD";
 
-  async function findStores() {
-    if (!/^\d{6}$/.test(pincode)) return;
+  async function findStores(params?: string) {
+    if (!params) {
+      if (!/^\d{6}$/.test(pincode)) return;
+      params = `pincode=${pincode}`;
+    }
     setStores(null);
     setStoreId(null);
     try {
-      const data = await apiFetch<{ stores: NearbyStore[] }>(`/api/stores/nearby?pincode=${pincode}`);
+      const data = await apiFetch<{ stores: NearbyStore[] }>(`/api/stores/nearby?${params}`);
       setStores(data.stores);
     } catch {
       setStores([]);
     }
+  }
+
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      toast({ title: "Location unavailable", description: "Your browser doesn't support geolocation.", variant: "error" });
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        findStores(`lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`);
+      },
+      () => {
+        setLocating(false);
+        toast({ title: "Couldn't get your location", description: "Enter a pincode instead.", variant: "error" });
+      }
+    );
   }
 
   React.useEffect(() => {
@@ -212,8 +234,11 @@ export function ReturnRequestModal({
                 placeholder="Pincode"
                 className="h-10 w-32 rounded-lg border border-border bg-surface px-3 text-sm"
               />
-              <Button size="sm" magnetic={false} onClick={findStores}>
+              <Button size="sm" magnetic={false} onClick={() => findStores()}>
                 Find stores
+              </Button>
+              <Button size="sm" variant="outline" magnetic={false} disabled={locating} onClick={useMyLocation}>
+                <LocateFixed className="h-3.5 w-3.5" /> {locating ? "Locating…" : "Use my location"}
               </Button>
             </div>
             {stores?.map((s) => (
@@ -226,9 +251,12 @@ export function ReturnRequestModal({
                 className={cn("w-full rounded-xl border p-3 text-left", storeId === s.id ? "border-accent bg-accent/5" : "border-border")}
               >
                 <p className="text-sm font-medium">{s.name}</p>
+                <p className="mt-0.5 text-xs text-foreground/60">
+                  {s.address}, {s.city} — {s.pincode}
+                </p>
                 <p className="mt-0.5 flex items-center gap-3 text-xs text-foreground/50">
                   <span className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" /> {s.distanceKm} km
+                    <MapPin className="h-3 w-3" /> {s.distanceKm} km away
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" /> {s.today.isOpen ? "Open now" : "Closed"}

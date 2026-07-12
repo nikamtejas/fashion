@@ -22,6 +22,9 @@ export const env = {
   jwtSecret: optional(process.env.JWT_SECRET) ?? "dev-only-insecure-secret-change-me",
   cookieName: "ll_session",
 
+  // Guards the one-time POST /api/auth/admin/setup bootstrap; unset = disabled.
+  adminSetupKey: optional(process.env.ADMIN_SETUP_KEY),
+
   googleClientId: optional(process.env.GOOGLE_CLIENT_ID),
   googleClientSecret: optional(process.env.GOOGLE_CLIENT_SECRET),
   googleRedirectUri:

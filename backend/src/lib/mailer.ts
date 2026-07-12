@@ -1,5 +1,9 @@
 import nodemailer from "nodemailer";
-import { INTEGRATIONS_MOCK, logIntegrationCall } from "./integrations";
+import { logIntegrationCall, serviceMock } from "./integrations";
+
+// EMAIL_MOCK=false sends real mail through the configured SMTP account
+// while the global INTEGRATIONS_MOCK can stay on for other services.
+const EMAIL_MOCK = serviceMock("EMAIL");
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -19,7 +23,7 @@ function getTransporter() {
 }
 
 export async function sendEmail(to: string, subject: string, text: string) {
-  if (INTEGRATIONS_MOCK) {
+  if (EMAIL_MOCK) {
     logIntegrationCall("email", "send", { to, subject });
     // eslint-disable-next-line no-console
     console.log(`\n[DEV EMAIL] To: ${to}\nSubject: ${subject}\n${text}\n`);
@@ -35,7 +39,7 @@ export async function sendEmail(to: string, subject: string, text: string) {
 }
 
 export async function sendOtpEmail(email: string, code: string) {
-  if (INTEGRATIONS_MOCK) {
+  if (EMAIL_MOCK) {
     logIntegrationCall("email", "sendOtp", { email, code });
     // eslint-disable-next-line no-console
     console.log(`\n[DEV OTP] Login code for ${email}: ${code}\n`);

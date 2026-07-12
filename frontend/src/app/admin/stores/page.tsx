@@ -10,6 +10,8 @@ interface AdminStore {
   _id: string;
   name: string;
   city: string;
+  lat?: number;
+  lng?: number;
   pickupConfig?: {
     windows: { start: string; end: string }[];
     capacityPerSlot: number;
@@ -66,7 +68,11 @@ export default function AdminStoresPage() {
       });
       setStores((prev) => [...(prev ?? []), data.store]);
       setForm(EMPTY_STORE);
-      toast({ title: `${data.store.name} added`, description: "It now appears in nearest-store search.", variant: "success" });
+      toast({
+        title: `${data.store.name} added`,
+        description: `Located at ${data.store.lat?.toFixed(4)}, ${data.store.lng?.toFixed(4)} — it now appears in nearest-store search.`,
+        variant: "success",
+      });
     } catch (err) {
       toast({ title: "Couldn't add store", description: err instanceof Error ? err.message : undefined, variant: "error" });
     } finally {

@@ -1,5 +1,5 @@
 // LuxeLoom service worker: offline shell + static caching.
-const CACHE = "luxeloom-v1";
+const CACHE = "luxeloom-v2";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icon.svg", "/manifest.webmanifest"];
 
@@ -28,19 +28,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for same-origin static assets.
+  // Network-first for same-origin static assets, cached copy as the offline
+  // fallback. (Cache-first served stale chunks in dev — dev chunk URLs
+  // aren't content-hashed, so a cached one shadowed every later code change.)
   event.respondWith(
-    caches.match(request).then(
-      (cached) =>
-        cached ??
-        fetch(request).then((response) => {
-          if (response.ok && (url.pathname.startsWith("/_next/static") || PRECACHE.includes(url.pathname))) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-    )
+    fetch(request)
+      .then((response) => {
+        if (response.ok && (url.pathname.startsWith("/_next/static") || PRECACHE.includes(url.pathname))) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request).then((cached) => cached ?? Response.error()))
   );
 });
 

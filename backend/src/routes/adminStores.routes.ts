@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { StoreLocation } from "../models/StoreLocation";
-import { geocodePincode } from "../lib/integrations/pincode";
+import { geocodeAddress, geocodePincode } from "../lib/integrations/pincode";
 import { requireAdmin } from "../middleware/auth";
 
 const router = Router();
@@ -35,9 +35,12 @@ router.post("/", async (req, res) => {
 
   let { lat, lng } = parsed.data;
   if (lat === undefined || lng === undefined) {
-    const point = await geocodePincode(parsed.data.pincode);
+    // Prefer the exact street address; fall back to the pincode centroid.
+    const { address, city, state, pincode } = parsed.data;
+    const point =
+      (await geocodeAddress(`${address}, ${city}, ${state} ${pincode}`)) ?? (await geocodePincode(pincode));
     if (!point) {
-      return res.status(400).json({ error: "Couldn't locate that pincode — enter latitude/longitude manually" });
+      return res.status(400).json({ error: "Couldn't locate that address or pincode — enter latitude/longitude manually" });
     }
     lat = point.lat;
     lng = point.lng;
