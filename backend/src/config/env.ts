@@ -53,6 +53,10 @@ export const env = {
   snapmintApiKey: optional(process.env.SNAPMINT_API_KEY),
   bluedartLicenseKey: optional(process.env.BLUEDART_LICENSE_KEY),
   bluedartLoginId: optional(process.env.BLUEDART_LOGIN_ID),
+
+  twilioAccountSid: optional(process.env.TWILIO_ACCOUNT_SID),
+  twilioAuthToken: optional(process.env.TWILIO_AUTH_TOKEN),
+  twilioFrom: optional(process.env.TWILIO_FROM),
 };
 
 export { required };

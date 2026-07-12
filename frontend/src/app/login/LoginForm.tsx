@@ -7,8 +7,9 @@ import { Mail, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { apiFetch, API_URL } from "@/lib/api";
+import { apiFetch, ApiError, API_URL } from "@/lib/api";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -29,7 +30,12 @@ export default function LoginForm() {
       await apiFetch("/api/auth/otp/request", { method: "POST", json: { email } });
       setStep("code");
       toast({ title: "Code sent", description: `Check ${email} for your login code.`, variant: "success" });
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "NOT_REGISTERED") {
+        toast({ title: "No account yet", description: "Create your LuxeLoom account first.", variant: "error" });
+        router.push(`/register?email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`);
+        return;
+      }
       toast({ title: "Couldn't send code", description: "Please try again.", variant: "error" });
     } finally {
       setLoading(false);
@@ -44,8 +50,12 @@ export default function LoginForm() {
       await refresh();
       router.push(callbackUrl);
       router.refresh();
-    } catch {
-      toast({ title: "Invalid code", description: "That code is incorrect or expired.", variant: "error" });
+    } catch (err) {
+      toast({
+        title: "Invalid code",
+        description: err instanceof Error ? err.message : "That code is incorrect or expired.",
+        variant: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -116,6 +126,16 @@ export default function LoginForm() {
         >
           Continue with Google
         </Button>
+
+        <p className="mt-6 text-center text-sm text-foreground/60">
+          New to LuxeLoom?{" "}
+          <Link
+            href={`/register?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+            className="text-accent underline underline-offset-2"
+          >
+            Create an account
+          </Link>
+        </p>
       </motion.div>
     </div>
   );

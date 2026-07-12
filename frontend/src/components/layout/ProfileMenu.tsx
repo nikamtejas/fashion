@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { User, LogOut, Package, Heart, LayoutDashboard, Moon, Sun } from "lucide-react";
+import { User, LogOut, Package, Heart, LayoutDashboard, Moon, Sun, UserCircle, MessageCircle } from "lucide-react";
 import { useTheme } from "@/components/layout/ThemeProvider";
 import { useAuth } from "@/context/AuthContext";
 
@@ -52,8 +52,18 @@ export function ProfileMenu() {
         >
           <div className="px-3 py-2 text-xs text-foreground/50">{user.email}</div>
           <DropdownMenu.Item asChild>
+            <Link href="/account/profile" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-foreground/5">
+              <UserCircle className="h-4 w-4" /> My Profile
+            </Link>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item asChild>
             <Link href="/account/orders" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-foreground/5">
               <Package className="h-4 w-4" /> My Orders
+            </Link>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item asChild>
+            <Link href="/account/profile?tab=support" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-foreground/5">
+              <MessageCircle className="h-4 w-4" /> Support
             </Link>
           </DropdownMenu.Item>
           <DropdownMenu.Item asChild>

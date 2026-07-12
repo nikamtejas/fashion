@@ -11,6 +11,10 @@ export interface AuthUser {
   name?: string;
   role: "CUSTOMER" | "ADMIN";
   image?: string;
+  phone?: string;
+  phoneVerified?: string;
+  /** YYYY-MM-DD */
+  dob?: string;
 }
 
 interface AuthContextValue {

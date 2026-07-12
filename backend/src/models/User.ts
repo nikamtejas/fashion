@@ -25,6 +25,8 @@ const UserSchema = new Schema(
     emailVerified: { type: Date },
     image: { type: String },
     phone: { type: String },
+    phoneVerified: { type: Date },
+    dob: { type: Date },
     role: { type: String, enum: ["CUSTOMER", "ADMIN"], default: "CUSTOMER", index: true },
     addresses: { type: [AddressSchema], default: [] },
     googleId: { type: String },

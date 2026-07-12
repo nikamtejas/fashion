@@ -234,9 +234,19 @@ router.post("/cod/place", async (req, res) => {
     const user = await User.findById(req.user!.uid).select("email").lean();
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // 1. OTP check.
-    const token = await OtpToken.findOne({ email: `cod:${user.email}`, consumedAt: { $exists: false } }).sort({ createdAt: -1 });
-    if (!token || token.expiresAt < new Date() || !(await bcrypt.compare(parsed.data.otp.trim(), token.codeHash))) {
+    // 1. OTP check — any still-valid code counts, not just the newest
+    // (same resend/out-of-order tolerance as the login OTP).
+    const tokens = await OtpToken.find({ email: `cod:${user.email}`, consumedAt: { $exists: false } })
+      .sort({ createdAt: -1 })
+      .limit(5);
+    let token = null;
+    for (const candidate of tokens) {
+      if (candidate.expiresAt > new Date() && (await bcrypt.compare(parsed.data.otp.trim(), candidate.codeHash))) {
+        token = candidate;
+        break;
+      }
+    }
+    if (!token) {
       return res.status(401).json({ error: "Incorrect or expired confirmation code" });
     }
 

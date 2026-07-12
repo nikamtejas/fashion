@@ -13,3 +13,4 @@ export { PickupAppointment } from "./PickupAppointment";
 export { Invoice } from "./Invoice";
 export { Review } from "./Review";
 export { LoyaltyAccount } from "./LoyaltyAccount";
+export { SupportTicket } from "./SupportTicket";
