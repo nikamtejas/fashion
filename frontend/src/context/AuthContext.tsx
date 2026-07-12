@@ -3,6 +3,7 @@
 import * as React from "react";
 import { apiFetch } from "@/lib/api";
 import { useFavoritesStore } from "@/store/favoritesStore";
+import { useCartStore } from "@/store/cartStore";
 
 export interface AuthUser {
   id: string;
@@ -37,8 +38,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.user);
       if (data.user) {
         useFavoritesStore.getState().refresh();
+        useCartStore.getState().refresh();
       } else {
         useFavoritesStore.getState().clear();
+        useCartStore.getState().clear();
       }
     } catch {
       setUser(null);
@@ -59,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await apiFetch("/api/auth/logout", { method: "POST" });
     setUser(null);
     useFavoritesStore.getState().clear();
+    useCartStore.getState().clear();
   }, []);
 
   return <AuthContext.Provider value={{ user, loading, refresh, logout }}>{children}</AuthContext.Provider>;

@@ -18,6 +18,22 @@ function getTransporter() {
   return transporter;
 }
 
+export async function sendEmail(to: string, subject: string, text: string) {
+  if (INTEGRATIONS_MOCK) {
+    logIntegrationCall("email", "send", { to, subject });
+    // eslint-disable-next-line no-console
+    console.log(`\n[DEV EMAIL] To: ${to}\nSubject: ${subject}\n${text}\n`);
+    return;
+  }
+
+  await getTransporter().sendMail({
+    from: process.env.EMAIL_FROM,
+    to,
+    subject,
+    text,
+  });
+}
+
 export async function sendOtpEmail(email: string, code: string) {
   if (INTEGRATIONS_MOCK) {
     logIntegrationCall("email", "sendOtp", { email, code });

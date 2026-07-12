@@ -8,6 +8,7 @@ import { AnnouncementMarquee } from "@/components/layout/AnnouncementMarquee";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PageTransition } from "@/components/layout/PageTransition";
+import { CartDrawer } from "@/components/cart/CartDrawer";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <main className="flex-1">
                 <PageTransition>{children}</PageTransition>
               </main>
+              <CartDrawer />
               <Footer />
             </ToastProvider>
           </ThemeProvider>

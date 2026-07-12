@@ -14,6 +14,15 @@ import cloudinaryRoutes from "./routes/cloudinary.routes";
 import favoritesRoutes from "./routes/favorites.routes";
 import adminProductsRoutes from "./routes/adminProducts.routes";
 import adminPhotoStudioRoutes from "./routes/adminPhotoStudio.routes";
+import cartRoutes from "./routes/cart.routes";
+import adminCouponsRoutes from "./routes/adminCoupons.routes";
+import storesRoutes from "./routes/stores.routes";
+import adminStoresRoutes from "./routes/adminStores.routes";
+import addressesRoutes from "./routes/addresses.routes";
+import checkoutRoutes from "./routes/checkout.routes";
+import ordersRoutes from "./routes/orders.routes";
+import appointmentsRoutes from "./routes/appointments.routes";
+import adminPickupsRoutes from "./routes/adminPickups.routes";
 
 export function createApp() {
   const app = express();
@@ -35,6 +44,15 @@ export function createApp() {
   app.use("/api/favorites", favoritesRoutes);
   app.use("/api/admin/products", adminProductsRoutes);
   app.use("/api/admin/products", adminPhotoStudioRoutes);
+  app.use("/api/cart", cartRoutes);
+  app.use("/api/admin/coupons", adminCouponsRoutes);
+  app.use("/api/stores", storesRoutes);
+  app.use("/api/admin/stores", adminStoresRoutes);
+  app.use("/api/addresses", addressesRoutes);
+  app.use("/api/checkout", checkoutRoutes);
+  app.use("/api/orders", ordersRoutes);
+  app.use("/api/appointments", appointmentsRoutes);
+  app.use("/api/admin/pickups", adminPickupsRoutes);
 
   app.use(errorHandler);
 

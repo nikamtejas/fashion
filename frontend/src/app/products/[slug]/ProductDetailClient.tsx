@@ -22,8 +22,8 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const { toast } = useToast();
   const isFavorited = useFavoritesStore((s) => s.ids.has(product.id));
   const toggleFavorite = useFavoritesStore((s) => s.toggle);
-  const cartCount = useCartStore((s) => s.count);
-  const setCartCount = useCartStore((s) => s.setCount);
+  const addItem = useCartStore((s) => s.addItem);
+  const [adding, setAdding] = React.useState(false);
 
   const [sizeGuideOpen, setSizeGuideOpen] = React.useState(false);
   const sizes = [...new Set(product.variants.map((v) => v.size))];
@@ -40,13 +40,23 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const inStock = (selectedVariant?.stock ?? 0) > 0;
   const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
 
-  function handleAddToBag() {
+  async function handleAddToBag() {
     if (!selectedVariant) {
       toast({ title: "Select a size and color", variant: "error" });
       return;
     }
-    setCartCount(cartCount + 1);
-    toast({ title: "Added to bag", description: product.name, variant: "success" });
+    if (!user) {
+      router.push(`/login?callbackUrl=/products/${product.slug}`);
+      return;
+    }
+    setAdding(true);
+    try {
+      await addItem(product.id, selectedVariant.sku);
+    } catch (err) {
+      toast({ title: "Couldn't add to bag", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setAdding(false);
+    }
   }
 
   function handleFavorite() {
@@ -135,8 +145,8 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
           </p>
 
           <div className="mt-6 flex gap-3">
-            <Button size="lg" className="flex-1" onClick={handleAddToBag} disabled={!inStock}>
-              {inStock ? "Add to bag" : "Out of stock"}
+            <Button size="lg" className="flex-1" onClick={handleAddToBag} disabled={!inStock || adding}>
+              {adding ? "Adding…" : inStock ? "Add to bag" : "Out of stock"}
             </Button>
             <button
               onClick={handleFavorite}

@@ -3,6 +3,8 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 const AddressSchema = new Schema(
   {
     label: { type: String, default: "Home" },
+    name: { type: String, required: true },
+    phone: { type: String, required: true },
     line1: { type: String, required: true },
     line2: { type: String },
     city: { type: String, required: true },

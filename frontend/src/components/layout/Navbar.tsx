@@ -25,6 +25,7 @@ export function Navbar() {
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const cartCount = useCartStore((s) => s.count);
+  const openCartDrawer = useCartStore((s) => s.openDrawer);
   const favoritesCount = useFavoritesStore((s) => s.count);
 
   useMotionValueEvent(scrollY, "change", (latest) => setScrolled(latest > 12));
@@ -63,14 +64,14 @@ export function Navbar() {
             <Heart className="h-5 w-5" />
             <IconCount count={favoritesCount} />
           </Link>
-          <Link
-            href="/cart"
+          <button
+            onClick={openCartDrawer}
             aria-label="Cart"
             className="relative rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             <ShoppingBag className="h-5 w-5" />
             <IconCount count={cartCount} />
-          </Link>
+          </button>
           <ProfileMenu />
         </div>
       </div>

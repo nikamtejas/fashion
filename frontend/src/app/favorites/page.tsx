@@ -29,8 +29,7 @@ export default function FavoritesPage() {
   const router = useRouter();
   const { toast } = useToast();
   const toggle = useFavoritesStore((s) => s.toggle);
-  const cartCount = useCartStore((s) => s.count);
-  const setCartCount = useCartStore((s) => s.setCount);
+  const addItem = useCartStore((s) => s.addItem);
   const [favorites, setFavorites] = React.useState<FavoriteProduct[] | null>(null);
 
   React.useEffect(() => {
@@ -49,9 +48,22 @@ export default function FavoritesPage() {
     setFavorites((prev) => prev?.filter((f) => f.id !== id) ?? null);
   }
 
-  function handleMoveToCart(product: FavoriteProduct) {
-    setCartCount(cartCount + 1);
-    toast({ title: "Moved to bag", description: product.name, variant: "success" });
+  async function handleMoveToCart(product: FavoriteProduct) {
+    try {
+      // Favorites don't carry a size — add the first in-stock variant.
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/products/${product.slug}`
+      );
+      const data = await res.json();
+      const variant = (data.product?.variants ?? []).find((v: { stock: number }) => v.stock > 0);
+      if (!variant) {
+        toast({ title: "Out of stock", description: product.name, variant: "error" });
+        return;
+      }
+      await addItem(product.id, variant.sku);
+    } catch (err) {
+      toast({ title: "Couldn't move to bag", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    }
   }
 
   if (authLoading || !user) {
