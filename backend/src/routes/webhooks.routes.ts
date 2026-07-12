@@ -2,8 +2,7 @@ import { Router, raw } from "express";
 import { verifyWebhookSignature } from "../lib/integrations/razorpay";
 import { Payment } from "../models/Payment";
 import { Order } from "../models/Order";
-import { sendOrderConfirmationEmail } from "../services/order.service";
-import { ensureInvoiceForOrder } from "../services/invoice.service";
+import { onOrderConfirmed } from "../services/confirmation.service";
 
 const router = Router();
 
@@ -45,8 +44,7 @@ router.post("/razorpay", raw({ type: "application/json" }), async (req, res) => 
     if (razorpayPaymentId) payment.razorpayPaymentId = razorpayPaymentId;
     await payment.save();
     await Order.updateOne({ _id: payment.order, status: "PENDING_PAYMENT" }, { status: "PLACED" });
-    await sendOrderConfirmationEmail(String(payment.order));
-    await ensureInvoiceForOrder(String(payment.order)).catch((e) => console.error("invoice generation failed:", e));
+    await onOrderConfirmed(String(payment.order));
   } else if (body.event === "payment.failed" && payment.status === "PENDING") {
     payment.status = "FAILED";
     await payment.save();

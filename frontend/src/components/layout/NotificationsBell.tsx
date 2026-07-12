@@ -22,11 +22,25 @@ export function NotificationsBell() {
   const [items, setItems] = React.useState<AppNotification[]>([]);
   const [unread, setUnread] = React.useState(0);
 
+  const lastTopId = React.useRef<string | null>(null);
+
   const load = React.useCallback(async () => {
     try {
       const data = await apiFetch<{ notifications: AppNotification[]; unread: number }>("/api/notifications");
       setItems(data.notifications);
       setUnread(data.unread);
+
+      // PWA push-style behavior: surface newly arrived order updates as
+      // browser notifications via the service worker (when permitted).
+      const top = data.notifications[0];
+      if (top && !top.read && lastTopId.current && top._id !== lastTopId.current && Notification?.permission === "granted") {
+        navigator.serviceWorker?.ready
+          .then((reg) =>
+            reg.active?.postMessage({ type: "SHOW_NOTIFICATION", title: top.title, body: top.body, link: top.link })
+          )
+          .catch(() => {});
+      }
+      if (top) lastTopId.current = top._id;
     } catch {
       // signed out or backend unreachable — bell just stays quiet
     }
@@ -45,6 +59,9 @@ export function NotificationsBell() {
 
   async function openPanel() {
     setOpen((v) => !v);
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
     if (!open && unread > 0) {
       await apiFetch("/api/notifications/read-all", { method: "POST" }).catch(() => {});
       setUnread(0);

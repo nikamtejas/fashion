@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAdmin } from "../middleware/auth";
 import { Product } from "../models/Product";
+import { checkAlertsForProduct } from "../services/alerts.service";
 
 const router = Router();
 router.use(requireAdmin);
@@ -38,6 +39,7 @@ router.patch("/stock", async (req, res) => {
     { arrayFilters: [{ "v.sku": parsed.data.sku }] }
   );
   if (result.matchedCount === 0) return res.status(404).json({ error: "Product/SKU not found" });
+  checkAlertsForProduct(parsed.data.productId).catch((e) => console.error("alert check failed:", e));
   res.json({ ok: true });
 });
 

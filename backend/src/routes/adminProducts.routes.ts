@@ -5,6 +5,7 @@ import { requireAdmin } from "../middleware/auth";
 import { slugify } from "../lib/slugify";
 import { computePricing } from "../lib/pricing";
 import { uploadImage, productFolder } from "../lib/cloudinary";
+import { checkAlertsForProduct } from "../services/alerts.service";
 
 const router = Router();
 router.use(requireAdmin);
@@ -107,6 +108,8 @@ router.patch("/:id", async (req, res) => {
   }
 
   await product.save();
+  // Price drops / restocks may satisfy armed customer alerts.
+  checkAlertsForProduct(String(product._id)).catch((e) => console.error("alert check failed:", e));
   res.json({ product });
 });
 

@@ -54,6 +54,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/customers" className="hover:text-foreground">
             Customers
           </Link>
+          <Link href="/admin/lookbooks" className="hover:text-foreground">
+            Lookbooks
+          </Link>
+          <Link href="/admin/reviews" className="hover:text-foreground">
+            Reviews
+          </Link>
           <Link href="/admin/coupons" className="hover:text-foreground">
             Coupons
           </Link>

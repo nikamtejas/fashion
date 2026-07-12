@@ -37,6 +37,8 @@ export interface PlaceOrderInput {
    * confirms immediately after its OTP.
    */
   initialStatus: "PENDING_PAYMENT" | "PLACED";
+  /** Loyalty points to redeem (1 point = ₹1), spent inside the transaction. */
+  loyaltyPoints?: number;
 }
 
 function generateOrderNumber(): string {
@@ -119,7 +121,17 @@ export async function placeOrder(input: PlaceOrderInput) {
       // 3. Create the order with full snapshots.
       const orderNumber = generateOrderNumber();
       const codFee = input.paymentMethod === "COD" ? (input.codFee ?? 0) : 0;
-      const total = Math.round((view.totals.total + codFee) * 100) / 100;
+
+      // Loyalty redemption (1 point = ₹1), capped so at least ₹1 remains
+      // payable — payment rails reject zero-value orders.
+      const preLoyaltyTotal = Math.round((view.totals.total + codFee) * 100) / 100;
+      const loyaltyRedeemed = Math.min(Math.max(0, Math.floor(input.loyaltyPoints ?? 0)), Math.max(0, Math.floor(preLoyaltyTotal - 1)));
+      if (loyaltyRedeemed > 0) {
+        const { redeemPoints } = await import("./loyalty.service.js");
+        // Order id doesn't exist yet — record against the order after create.
+        await redeemPoints(input.userId, loyaltyRedeemed, null, session);
+      }
+      const total = Math.round((preLoyaltyTotal - loyaltyRedeemed) * 100) / 100;
       const [order] = await Order.create(
         [
           {
@@ -141,7 +153,7 @@ export async function placeOrder(input: PlaceOrderInput) {
               gst: view.totals.gst,
               shipping: view.totals.shipping,
               codFee,
-              loyaltyRedeemed: 0,
+              loyaltyRedeemed,
               total,
             },
             coupon: couponId,
@@ -242,6 +254,17 @@ export async function releaseStaleReservations(now = new Date()) {
         }
         if (order.coupon) {
           await Coupon.updateOne({ _id: order.coupon, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } }, { session });
+        }
+        if (order.pricing.loyaltyRedeemed > 0) {
+          const { LoyaltyAccount } = await import("../models/LoyaltyAccount.js");
+          await LoyaltyAccount.updateOne(
+            { user: order.user },
+            {
+              $inc: { points: order.pricing.loyaltyRedeemed },
+              $push: { history: { type: "EARN", points: order.pricing.loyaltyRedeemed, order: order._id, date: new Date() } },
+            },
+            { session }
+          );
         }
         order.status = "CANCELLED";
         await order.save({ session });

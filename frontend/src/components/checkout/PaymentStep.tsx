@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { useCartStore } from "@/store/cartStore";
 import { cn } from "@/lib/utils";
+import { Coins } from "lucide-react";
 
 interface EmiPlan {
   tenureMonths: number;
@@ -65,6 +66,9 @@ export function PaymentStep({
   const [mockModal, setMockModal] = React.useState<{ orderId: string } | null>(null);
   const [snapmintWait, setSnapmintWait] = React.useState<{ orderId: string } | null>(null);
   const [failedOrderId, setFailedOrderId] = React.useState<string | null>(null);
+  const [loyaltyBalance, setLoyaltyBalance] = React.useState(0);
+  const [useLoyalty, setUseLoyalty] = React.useState(false);
+  const [loyaltyPoints, setLoyaltyPoints] = React.useState(0);
 
   React.useEffect(() => {
     apiFetch<{ eligible: boolean; plans: EmiPlan[] }>(`/api/payments/emi-plans?amount=${total}`)
@@ -74,10 +78,18 @@ export function PaymentStep({
     apiFetch<{ codConvenienceFee: number; codMaxOrderValue: number }>("/api/payments/checkout-settings")
       .then((d) => setCodSettings({ fee: d.codConvenienceFee, max: d.codMaxOrderValue }))
       .catch(() => setCodSettings(null));
+    apiFetch<{ points: number }>("/api/loyalty")
+      .then((d) => {
+        setLoyaltyBalance(d.points);
+        setLoyaltyPoints(Math.min(d.points, Math.max(0, Math.floor(total - 1))));
+      })
+      .catch(() => setLoyaltyBalance(0));
   }, [total]);
 
   const emiEligible = (emiPlans?.length ?? 0) > 0;
   const codEligible = codSettings === null || total <= codSettings.max;
+  const redeemedPoints = useLoyalty ? Math.min(loyaltyPoints, loyaltyBalance, Math.max(0, Math.floor(total - 1))) : 0;
+  const payable = Math.round((total - redeemedPoints) * 100) / 100;
 
   async function finish(orderId: string) {
     await refreshCart();
@@ -93,7 +105,7 @@ export function PaymentStep({
         orderId: string;
         razorpay: { orderId: string; keyId: string; amount: number; currency: string };
         mock: boolean;
-      }>("/api/payments/razorpay/initiate", { method: "POST", json: payload });
+      }>("/api/payments/razorpay/initiate", { method: "POST", json: { ...payload, loyaltyPoints: redeemedPoints } });
 
       if (init.mock) {
         setMockModal({ orderId: init.orderId });
@@ -186,7 +198,7 @@ export function PaymentStep({
     try {
       const data = await apiFetch<{ order: { _id: string } }>("/api/payments/cod/place", {
         method: "POST",
-        json: { ...payload, otp: codOtp },
+        json: { ...payload, otp: codOtp, loyaltyPoints: redeemedPoints },
       });
       await finish(data.order._id);
     } catch (err) {
@@ -202,7 +214,7 @@ export function PaymentStep({
     try {
       const init = await apiFetch<{ orderId: string; mock: boolean }>("/api/payments/snapmint/initiate", {
         method: "POST",
-        json: { ...payload, tenure },
+        json: { ...payload, tenure, loyaltyPoints: redeemedPoints },
       });
       setSnapmintWait({ orderId: init.orderId });
       // MOCK: Snapmint "approves" after ~3 seconds.
@@ -315,6 +327,32 @@ export function PaymentStep({
         </div>
       )}
 
+      {loyaltyBalance > 0 && (
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={useLoyalty} onChange={(e) => setUseLoyalty(e.target.checked)} />
+            <Coins className="h-4 w-4 text-sienna" />
+            Use loyalty points <span className="text-xs text-foreground/50">(balance: {loyaltyBalance} · 1 pt = ₹1)</span>
+          </label>
+          {useLoyalty && (
+            <div className="mt-2 flex items-center gap-2 text-sm">
+              <input
+                type="number"
+                min={0}
+                max={Math.min(loyaltyBalance, Math.floor(total - 1))}
+                value={loyaltyPoints}
+                onChange={(e) => setLoyaltyPoints(Number(e.target.value) || 0)}
+                className="h-9 w-28 rounded-lg border border-border bg-background px-2 tabular-nums"
+                aria-label="Points to redeem"
+              />
+              <span className="text-xs text-foreground/50">
+                −₹{redeemedPoints.toLocaleString("en-IN")} → you pay ₹{payable.toLocaleString("en-IN")}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       <p className="flex items-center gap-1.5 text-[11px] text-foreground/40">
         <ShieldCheck className="h-3.5 w-3.5" /> Payments are verified server-side; your items stay reserved while you pay.
       </p>
@@ -325,7 +363,7 @@ export function PaymentStep({
         </Button>
         {method === "RAZORPAY" && (
           <Button size="lg" disabled={busy} onClick={payWithRazorpay}>
-            {busy ? "Starting…" : `Pay ₹${total.toLocaleString("en-IN")}`}
+            {busy ? "Starting…" : `Pay ₹${payable.toLocaleString("en-IN")}`}
           </Button>
         )}
         {method === "COD" &&

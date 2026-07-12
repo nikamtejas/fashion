@@ -45,9 +45,11 @@ router.get("/", async (req, res) => {
     minPrice,
     maxPrice,
     q,
+    slugs,
   } = req.query as Record<string, string>;
 
   const query: Record<string, unknown> = { status: "PUBLISHED" };
+  if (slugs) query.slug = { $in: slugs.split(",").map((s) => s.trim()).filter(Boolean) };
 
   if (category) {
     const cat = await Category.findOne({ slug: category }).select("_id").lean();
@@ -156,7 +158,7 @@ const reviewSchema = z.object({
   rating: z.number().min(1).max(5),
   title: z.string().optional(),
   body: z.string().min(1),
-  photos: z.array(z.object({ publicId: z.string(), secureUrl: z.string() })).optional(),
+  photoDataUris: z.array(z.string().startsWith("data:image/")).max(4).optional(),
 });
 
 router.post("/:slug/reviews", requireAuth, async (req, res) => {
@@ -166,26 +168,31 @@ router.post("/:slug/reviews", requireAuth, async (req, res) => {
   const product = await Product.findOne({ slug: req.params.slug }).select("_id").lean();
   if (!product) return res.status(404).json({ error: "Product not found" });
 
+  // Verified purchase: the reviewer has a delivered order containing this product.
+  const { Order } = await import("../models/Order.js");
+  const verifiedPurchase = Boolean(
+    await Order.exists({ user: req.user!.uid, status: "DELIVERED", "items.product": product._id })
+  );
+
+  const photos: { publicId: string; secureUrl: string }[] = [];
+  for (const dataUri of parsed.data.photoDataUris ?? []) {
+    const { uploadImage } = await import("../lib/cloudinary.js");
+    const uploaded = await uploadImage(dataUri, { folder: `luxeloom/reviews/${req.params.slug}` });
+    photos.push({ publicId: uploaded.publicId, secureUrl: uploaded.secureUrl });
+  }
+
   const review = await Review.create({
     product: product._id,
     user: req.user!.uid,
     rating: parsed.data.rating,
     title: parsed.data.title,
     body: parsed.data.body,
-    photos: parsed.data.photos ?? [],
-    status: "APPROVED", // moderation queue arrives in M8
+    photos,
+    verifiedPurchase,
+    status: "PENDING", // published after admin moderation
   });
 
-  const stats = await Review.aggregate([
-    { $match: { product: product._id, status: "APPROVED" } },
-    { $group: { _id: null, avg: { $avg: "$rating" }, count: { $sum: 1 } } },
-  ]);
-  await Product.updateOne(
-    { _id: product._id },
-    { ratingAvg: stats[0]?.avg ?? parsed.data.rating, ratingCount: stats[0]?.count ?? 1 }
-  );
-
-  res.status(201).json({ review });
+  res.status(201).json({ review, pending: true });
 });
 
 export default router;

@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
+import { fileToDataUri } from "@/lib/imageQuality";
 
 interface Review {
   id: string;
@@ -36,6 +37,7 @@ export function ReviewsSection({ slug }: { slug: string }) {
   const [showForm, setShowForm] = React.useState(false);
   const [rating, setRating] = React.useState(5);
   const [body, setBody] = React.useState("");
+  const [photos, setPhotos] = React.useState<string[]>([]);
   const [submitting, setSubmitting] = React.useState(false);
 
   const load = React.useCallback(() => {
@@ -50,9 +52,10 @@ export function ReviewsSection({ slug }: { slug: string }) {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await apiFetch(`/api/products/${slug}/reviews`, { method: "POST", json: { rating, body } });
-      toast({ title: "Review posted", variant: "success" });
+      await apiFetch(`/api/products/${slug}/reviews`, { method: "POST", json: { rating, body, photoDataUris: photos } });
+      toast({ title: "Review submitted", description: "It'll appear once our team approves it.", variant: "success" });
       setBody("");
+      setPhotos([]);
       setShowForm(false);
       load();
     } catch (err) {
@@ -91,6 +94,29 @@ export function ReviewsSection({ slug }: { slug: string }) {
             rows={3}
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
           />
+          <div>
+            <label className="text-xs text-foreground/50">Add photos (up to 4)</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="mt-1 block text-xs"
+              onChange={async (e) => {
+                const files = Array.from(e.target.files ?? []).slice(0, 4);
+                const uris: string[] = [];
+                for (const f of files) uris.push(await fileToDataUri(f));
+                setPhotos(uris);
+              }}
+            />
+            {photos.length > 0 && (
+              <div className="mt-2 flex gap-2">
+                {photos.map((p, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={p} alt="" className="h-14 w-14 rounded-lg object-cover" />
+                ))}
+              </div>
+            )}
+          </div>
           <Button type="submit" size="sm" disabled={submitting} magnetic={false}>
             {submitting ? "Posting…" : "Post review"}
           </Button>

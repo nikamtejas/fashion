@@ -9,6 +9,8 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { CartDrawer } from "@/components/cart/CartDrawer";
+import { AskLoom } from "@/components/stylist/AskLoom";
+import { PwaSetup } from "@/components/layout/PwaSetup";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -25,6 +27,12 @@ export const metadata: Metadata = {
   title: "LuxeLoom — Editorial Fashion, Made for India",
   description:
     "LuxeLoom is a premium fashion e-commerce platform for the Indian market — considered pieces, honest pricing, in-store pickup.",
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg" },
+};
+
+export const viewport = {
+  themeColor: "#141414",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -40,6 +48,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <PageTransition>{children}</PageTransition>
               </main>
               <CartDrawer />
+              <AskLoom />
+              <PwaSetup />
               <Footer />
             </ToastProvider>
           </ThemeProvider>

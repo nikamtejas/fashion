@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { requireAuth } from "../middleware/auth";
-import { placeOrder, sendOrderConfirmationEmail, HttpError, type AddressInput } from "../services/order.service";
+import { placeOrder, HttpError, type AddressInput } from "../services/order.service";
 import { buildCartView } from "../services/cart.service";
 import { getSettings } from "../models/Settings";
 import { User } from "../models/User";
@@ -18,7 +18,7 @@ import {
 } from "../lib/integrations/razorpay";
 import { computeEmiPlans, createSnapmintOrder, EMI_TENURES, type EmiTenure } from "../lib/integrations/snapmint";
 import { INTEGRATIONS_MOCK } from "../lib/integrations";
-import { ensureInvoiceForOrder } from "../services/invoice.service";
+import { onOrderConfirmed } from "../services/confirmation.service";
 import crypto from "node:crypto";
 
 const router = Router();
@@ -68,6 +68,7 @@ const checkoutSchema = z
     appointment: z
       .object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), timeSlot: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/) })
       .optional(),
+    loyaltyPoints: z.number().int().min(0).optional(),
   })
   .refine((d) => d.deliveryMethod === "PICKUP" || d.addressId || d.address, { message: "Provide a delivery address" })
   .refine((d) => d.deliveryMethod === "HOME" || (d.storeId && d.appointment), {
@@ -116,6 +117,7 @@ router.post("/razorpay/initiate", async (req, res) => {
       appointment: parsed.data.appointment,
       paymentMethod: "RAZORPAY",
       initialStatus: "PENDING_PAYMENT",
+      loyaltyPoints: parsed.data.loyaltyPoints,
     });
     if (!order) throw new HttpError(500, "Order creation failed");
 
@@ -183,8 +185,7 @@ router.post("/razorpay/verify", async (req, res) => {
 
     order.status = "PLACED";
     await order.save();
-    await sendOrderConfirmationEmail(String(order._id));
-    await ensureInvoiceForOrder(String(order._id)).catch((e) => console.error("invoice generation failed:", e));
+    await onOrderConfirmed(String(order._id));
 
     res.json({ ok: true, order });
   } catch (err) {
@@ -267,8 +268,9 @@ router.post("/cod/place", async (req, res) => {
       paymentMethod: "COD",
       codFee: settings.codConvenienceFee,
       initialStatus: "PLACED",
+      loyaltyPoints: parsed.data.loyaltyPoints,
     });
-    if (order) await ensureInvoiceForOrder(String(order._id)).catch((e) => console.error("invoice generation failed:", e));
+    if (order) await onOrderConfirmed(String(order._id));
 
     res.status(201).json({ order });
   } catch (err) {
@@ -305,6 +307,7 @@ router.post("/snapmint/initiate", async (req, res) => {
       appointment: parsed.data.appointment,
       paymentMethod: "SNAPMINT",
       initialStatus: "PENDING_PAYMENT",
+      loyaltyPoints: parsed.data.loyaltyPoints,
     });
     if (!order) throw new HttpError(500, "Order creation failed");
 
@@ -353,8 +356,7 @@ router.post("/snapmint/callback", async (req, res) => {
       await payment.save();
       order.status = "PLACED";
       await order.save();
-      await sendOrderConfirmationEmail(String(order._id));
-      await ensureInvoiceForOrder(String(order._id)).catch((e) => console.error("invoice generation failed:", e));
+      await onOrderConfirmed(String(order._id));
     } else {
       payment.status = "FAILED";
       await payment.save();

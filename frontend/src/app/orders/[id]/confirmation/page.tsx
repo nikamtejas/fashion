@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check, FileText, PackageSearch } from "lucide-react";
+import confetti from "canvas-confetti";
 import { apiFetch, API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
@@ -47,6 +48,14 @@ export default function ConfirmationPage() {
         setAppointment(data.appointment);
       })
       .catch(() => router.replace("/account/orders"));
+    // First-order celebration: a burst of confetti for the very first one.
+    apiFetch<{ orders: unknown[] }>("/api/orders")
+      .then((d) => {
+        if (d.orders.length === 1) {
+          confetti({ particleCount: 140, spread: 90, origin: { y: 0.6 }, colors: ["#C15B3C", "#8A9A7E", "#141414", "#FAF7F2"] });
+        }
+      })
+      .catch(() => {});
   }, [user, id, router]);
 
   if (!order) return <div className="py-20 text-center text-sm text-foreground/50">Loading…</div>;

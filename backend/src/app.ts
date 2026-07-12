@@ -35,6 +35,12 @@ import adminPosRoutes from "./routes/adminPos.routes";
 import adminDashboardRoutes from "./routes/adminDashboard.routes";
 import adminCustomersRoutes from "./routes/adminCustomers.routes";
 import adminInventoryRoutes from "./routes/adminInventory.routes";
+import alertsRoutes from "./routes/alerts.routes";
+import loyaltyRoutes from "./routes/loyalty.routes";
+import lookbooksRoutes from "./routes/lookbooks.routes";
+import adminLookbooksRoutes from "./routes/adminLookbooks.routes";
+import stylistRoutes from "./routes/stylist.routes";
+import adminReviewsRoutes from "./routes/adminReviews.routes";
 
 export function createApp() {
   const app = express();
@@ -79,6 +85,12 @@ export function createApp() {
   app.use("/api/admin/dashboard", adminDashboardRoutes);
   app.use("/api/admin/customers", adminCustomersRoutes);
   app.use("/api/admin/inventory", adminInventoryRoutes);
+  app.use("/api/alerts", alertsRoutes);
+  app.use("/api/loyalty", loyaltyRoutes);
+  app.use("/api/lookbooks", lookbooksRoutes);
+  app.use("/api/admin/lookbooks", adminLookbooksRoutes);
+  app.use("/api/stylist", stylistRoutes);
+  app.use("/api/admin/reviews", adminReviewsRoutes);
 
   app.use(errorHandler);
 

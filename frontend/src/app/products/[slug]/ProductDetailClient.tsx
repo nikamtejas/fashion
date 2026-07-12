@@ -10,6 +10,9 @@ import { useFavoritesStore } from "@/store/favoritesStore";
 import { useCartStore } from "@/store/cartStore";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { EmiWidget } from "@/components/product/EmiWidget";
+import { TryOnButton } from "@/components/product/TryOnModal";
+import { AlertButtons } from "@/components/product/AlertButtons";
+import { RecentlyViewedRail, recordView } from "@/components/product/RecentlyViewed";
 import { SizeGuideModal } from "@/components/product/SizeGuideModal";
 import { ShareButton } from "@/components/product/ShareButton";
 import { CompleteTheLook } from "@/components/product/CompleteTheLook";
@@ -27,6 +30,10 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const [adding, setAdding] = React.useState(false);
 
   const [sizeGuideOpen, setSizeGuideOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    recordView(product.slug);
+  }, [product.slug]);
   const sizes = [...new Set(product.variants.map((v) => v.size))];
   const colors = [...new Map(product.variants.map((v) => [v.color, v.colorHex])).entries()];
   const [selectedSize, setSelectedSize] = React.useState<string | null>(sizes[0] ?? null);
@@ -41,7 +48,35 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const inStock = (selectedVariant?.stock ?? 0) > 0;
   const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
 
-  async function handleAddToBag() {
+  /** Micro-delight: a dot flies from the button to the cart icon. */
+  function flyToCart(from: HTMLElement) {
+    const cartIcon = document.querySelector('[aria-label="Cart"]');
+    if (!cartIcon) return;
+    const a = from.getBoundingClientRect();
+    const b = cartIcon.getBoundingClientRect();
+    const dot = document.createElement("span");
+    dot.setAttribute("aria-hidden", "true");
+    Object.assign(dot.style, {
+      position: "fixed",
+      left: `${a.left + a.width / 2}px`,
+      top: `${a.top + a.height / 2}px`,
+      width: "14px",
+      height: "14px",
+      borderRadius: "9999px",
+      background: "#C15B3C",
+      zIndex: "60",
+      pointerEvents: "none",
+      transition: "transform 0.7s cubic-bezier(.2,.7,.3,1), opacity 0.7s ease",
+    });
+    document.body.appendChild(dot);
+    requestAnimationFrame(() => {
+      dot.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(0.3)`;
+      dot.style.opacity = "0";
+    });
+    setTimeout(() => dot.remove(), 750);
+  }
+
+  async function handleAddToBag(event: React.MouseEvent<HTMLButtonElement>) {
     if (!selectedVariant) {
       toast({ title: "Select a size and color", variant: "error" });
       return;
@@ -50,6 +85,7 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
       router.push(`/login?callbackUrl=/products/${product.slug}`);
       return;
     }
+    flyToCart(event.currentTarget);
     setAdding(true);
     try {
       await addItem(product.id, selectedVariant.sku);
@@ -162,13 +198,19 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
             </button>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-4">
             <ShareButton title={product.name} />
+            <TryOnButton slug={product.slug} />
+          </div>
+
+          <div className="mt-3">
+            <AlertButtons productId={product.id} inStock={totalStock > 0} />
           </div>
         </div>
       </div>
 
       <CompleteTheLook slug={product.slug} />
+      <RecentlyViewedRail excludeSlug={product.slug} />
       <ReviewsSection slug={product.slug} />
 
       <SizeGuideModal open={sizeGuideOpen} onOpenChange={setSizeGuideOpen} />

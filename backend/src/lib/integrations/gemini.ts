@@ -162,6 +162,84 @@ export async function checkFaithfulness(
   }
 }
 
+// ─── Ask Loom stylist chat (M8) ─────────────────────────────────────────────
+
+export interface CatalogItem {
+  slug: string;
+  name: string;
+  price: number;
+  category: string;
+  tags: string[];
+}
+
+export interface StylistReply {
+  reply: string;
+  slugs: string[];
+}
+
+export async function stylistChat(
+  messages: { role: "user" | "assistant"; content: string }[],
+  catalog: CatalogItem[]
+): Promise<StylistReply> {
+  logIntegrationCall("gemini", "stylistChat", { turns: messages.length, mock: INTEGRATIONS_MOCK });
+
+  if (INTEGRATIONS_MOCK) {
+    // Keyword match over the catalog so the mock stylist still recommends
+    // real, shoppable products.
+    const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content.toLowerCase() ?? "";
+    const scored = catalog
+      .map((c) => {
+        const hay = `${c.name} ${c.category} ${c.tags.join(" ")}`.toLowerCase();
+        const score = lastUser.split(/\W+/).filter((w) => w.length > 3 && hay.includes(w)).length;
+        return { c, score };
+      })
+      .sort((a, b) => b.score - a.score);
+    const picks = (scored[0]?.score ? scored.filter((s) => s.score > 0) : scored).slice(0, 3).map((s) => s.c);
+    return {
+      reply: `Here's what I'd pull from the current collection for that. ${picks
+        .map((p) => p.name)
+        .join(", ")} would work beautifully together — tap any card to see details. (Loom is running in demo mode; connect a Gemini key for full styling advice.)`,
+      slugs: picks.map((p) => p.slug),
+    };
+  }
+
+  const ai = await getClient();
+  const catalogText = catalog
+    .map((c) => `- ${c.slug} | ${c.name} | ₹${c.price} | ${c.category} | ${c.tags.join(",")}`)
+    .join("\n");
+  const history = messages.map((m) => `${m.role === "user" ? "Customer" : "Loom"}: ${m.content}`).join("\n");
+
+  const prompt = `You are "Loom", LuxeLoom's fashion stylist. Answer the customer's styling question warmly and concisely (2-4 sentences), recommending ONLY items from this catalog:\n${catalogText}\n\nConversation so far:\n${history}\n\nRespond with ONLY JSON, no markdown fences: {"reply": string, "slugs": string[] (0-4 catalog slugs you recommend)}.`;
+
+  const response = await withTimeout(
+    ai.models.generateContent({ model: FAST_MODEL, contents: [{ role: "user", parts: [{ text: prompt }] }] }),
+    25000,
+    "gemini:stylist"
+  );
+  const text = response.text ?? "{}";
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  try {
+    const parsed = JSON.parse(jsonMatch?.[0] ?? "{}");
+    const valid = new Set(catalog.map((c) => c.slug));
+    return {
+      reply: parsed.reply ?? "Let me think about that…",
+      slugs: Array.isArray(parsed.slugs) ? parsed.slugs.filter((s: string) => valid.has(s)).slice(0, 4) : [],
+    };
+  } catch {
+    return { reply: text.slice(0, 500), slugs: [] };
+  }
+}
+
+/** Virtual try-on-lite (M8): the garment visualized on a model backdrop.
+ * Always presented to customers with an explicit AI-generated label. */
+export async function generateTryOn(front: ImageInput, garmentName: string): Promise<ImageOutput> {
+  logIntegrationCall("gemini", "generateTryOn", { garmentName, mock: INTEGRATIONS_MOCK });
+  if (INTEGRATIONS_MOCK) return mockImage(`tryon-${garmentName}`);
+
+  const prompt = `Generate a photorealistic image of a model wearing EXACTLY this garment ("${garmentName}") from the reference photo, front-on against a clean neutral studio backdrop. HARD CONSTRAINTS: preserve the garment's exact color, print, pattern, texture and proportions — no redesign. Commercial e-commerce style.`;
+  return callImageModel(PRIMARY_MODEL, prompt, [front]);
+}
+
 export interface SeoContent {
   description: string;
   tags: string[];
