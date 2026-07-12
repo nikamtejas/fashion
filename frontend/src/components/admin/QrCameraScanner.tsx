@@ -65,7 +65,9 @@ export function QrCameraScanner({ onScan }: { onScan: (text: string) => void }) 
         if (!canvas.width || !canvas.height) return;
         ctx.drawImage(video, 0, 0);
         const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const result = jsQR(image.data, image.width, image.height, { inversionAttempts: "dontInvert" });
+        // attemptBoth also reads inverted (light-on-dark) codes — phone
+        // screenshots and dark-mode wallets render them that way.
+        const result = jsQR(image.data, image.width, image.height, { inversionAttempts: "attemptBoth" });
         if (result?.data) {
           // One-shot: camera goes dark the instant a code is read, before the
           // parent even processes it — no lingering stream while (or after)
@@ -99,7 +101,7 @@ export function QrCameraScanner({ onScan }: { onScan: (text: string) => void }) 
         <div className="h-40 w-40 rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
       </div>
       <p className="absolute inset-x-0 bottom-2 text-center text-[11px] text-white/80">
-        Point the camera at the customer&rsquo;s QR code
+        Keep the whole QR code inside the frame — steady, well-lit, ~15&nbsp;cm away
       </p>
     </div>
   );
