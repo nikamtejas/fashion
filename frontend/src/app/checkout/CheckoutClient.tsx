@@ -2,16 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useCartStore } from "@/store/cartStore";
 import { apiFetch } from "@/lib/api";
 import { Stepper } from "@/components/ui/Stepper";
-import { Button } from "@/components/ui/Button";
-import { useToast } from "@/components/ui/Toast";
 import { CartSummary } from "@/components/cart/CartSummary";
 import { AddressStep } from "@/components/checkout/AddressStep";
 import { DeliveryStep } from "@/components/checkout/DeliveryStep";
+import { PaymentStep } from "@/components/checkout/PaymentStep";
 import type { CheckoutSelection } from "@/components/checkout/types";
 
 const STEPS = [{ label: "Address" }, { label: "Delivery" }, { label: "Payment" }];
@@ -19,17 +17,14 @@ const STEPS = [{ label: "Address" }, { label: "Delivery" }, { label: "Payment" }
 export function CheckoutClient() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
   const cart = useCartStore((s) => s.cart);
   const loaded = useCartStore((s) => s.loaded);
-  const refreshCart = useCartStore((s) => s.refresh);
 
   const [step, setStep] = React.useState(0);
   const [selection, setSelection] = React.useState<CheckoutSelection>({ deliveryMethod: null });
   const [pincode, setPincode] = React.useState("");
   const [serviceable, setServiceable] = React.useState(true);
   const [etaDays, setEtaDays] = React.useState<number | undefined>();
-  const [placing, setPlacing] = React.useState(false);
 
   React.useEffect(() => {
     if (!authLoading && !user) router.replace("/login?callbackUrl=/checkout");
@@ -37,38 +32,16 @@ export function CheckoutClient() {
 
   // Redirect only once the cart has genuinely loaded as empty — never on a
   // transient pre-load frame (that exact flicker bit the previous build).
+  // The payment step is exempt: order placement legitimately empties the
+  // cart while its flows (verify, confirmation redirect) are mid-flight.
   React.useEffect(() => {
-    if (user && loaded && cart && cart.items.length === 0 && !placing) {
+    if (user && loaded && cart && cart.items.length === 0 && step < 2) {
       router.replace("/cart");
     }
-  }, [user, loaded, cart, placing, router]);
+  }, [user, loaded, cart, step, router]);
 
   if (authLoading || !user || !loaded || !cart) {
     return <div className="py-20 text-center text-sm text-foreground/50">Loading checkout…</div>;
-  }
-
-  async function handlePlaceOrder() {
-    setPlacing(true);
-    try {
-      const payload =
-        selection.deliveryMethod === "PICKUP"
-          ? {
-              deliveryMethod: "PICKUP",
-              storeId: selection.storeId,
-              appointment: selection.appointment,
-            }
-          : { deliveryMethod: "HOME", addressId: selection.addressId };
-
-      const data = await apiFetch<{ order: { _id: string } }>("/api/checkout/place-order", {
-        method: "POST",
-        json: payload,
-      });
-      await refreshCart();
-      router.push(`/orders/${data.order._id}/confirmation`);
-    } catch (err) {
-      toast({ title: "Couldn't place order", description: err instanceof Error ? err.message : undefined, variant: "error" });
-      setPlacing(false);
-    }
   }
 
   return (
@@ -109,15 +82,6 @@ export function CheckoutClient() {
 
           {step === 2 && (
             <div className="space-y-5">
-              <div className="rounded-2xl border border-dashed border-border bg-surface p-6 text-center">
-                <CreditCard className="mx-auto h-8 w-8 text-foreground/30" />
-                <p className="mt-3 text-sm font-medium">Payments arrive in Milestone 5</p>
-                <p className="mt-1 text-xs text-foreground/50">
-                  Razorpay, Cash on Delivery and Snapmint EMI are coming next. For now your order is placed with
-                  payment pending.
-                </p>
-              </div>
-
               {selection.deliveryMethod === "PICKUP" && (
                 <p className="text-xs text-foreground/60">
                   Picking up at <span className="font-medium">{selection.storeName}</span> on{" "}
@@ -127,14 +91,15 @@ export function CheckoutClient() {
                 </p>
               )}
 
-              <div className="flex gap-3">
-                <Button variant="outline" magnetic={false} onClick={() => setStep(1)}>
-                  Back
-                </Button>
-                <Button size="lg" disabled={placing} onClick={handlePlaceOrder}>
-                  {placing ? "Placing order…" : "Place order"}
-                </Button>
-              </div>
+              <PaymentStep
+                total={cart.totals.total}
+                onBack={() => setStep(1)}
+                payload={
+                  selection.deliveryMethod === "PICKUP"
+                    ? { deliveryMethod: "PICKUP", storeId: selection.storeId, appointment: selection.appointment }
+                    : { deliveryMethod: "HOME", addressId: selection.addressId }
+                }
+              />
             </div>
           )}
         </div>

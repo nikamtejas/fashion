@@ -4,6 +4,8 @@ const ShipmentSchema = new Schema(
   {
     order: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
     courier: { type: String, enum: ["BLUEDART"], default: "BLUEDART" },
+    /** FORWARD = store→customer; REVERSE = customer→warehouse (returns). */
+    direction: { type: String, enum: ["FORWARD", "REVERSE"], default: "FORWARD", index: true },
     awbNumber: { type: String, index: true },
     status: {
       type: String,

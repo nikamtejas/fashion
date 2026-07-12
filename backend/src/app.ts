@@ -19,15 +19,25 @@ import adminCouponsRoutes from "./routes/adminCoupons.routes";
 import storesRoutes from "./routes/stores.routes";
 import adminStoresRoutes from "./routes/adminStores.routes";
 import addressesRoutes from "./routes/addresses.routes";
-import checkoutRoutes from "./routes/checkout.routes";
+import paymentsRoutes from "./routes/payments.routes";
+import webhooksRoutes from "./routes/webhooks.routes";
+import adminSettingsRoutes from "./routes/adminSettings.routes";
 import ordersRoutes from "./routes/orders.routes";
 import appointmentsRoutes from "./routes/appointments.routes";
 import adminPickupsRoutes from "./routes/adminPickups.routes";
+import trackRoutes from "./routes/track.routes";
+import adminOrdersRoutes from "./routes/adminOrders.routes";
+import returnsRoutes from "./routes/returns.routes";
+import adminReturnsRoutes from "./routes/adminReturns.routes";
+import notificationsRoutes from "./routes/notifications.routes";
 
 export function createApp() {
   const app = express();
 
   app.use(cors({ origin: env.frontendUrl, credentials: true }));
+  // Webhooks verify HMAC signatures over the raw body, so they mount
+  // before the JSON parser (the router applies express.raw itself).
+  app.use("/api/webhooks", webhooksRoutes);
   // Raised limit: admin image uploads arrive as base64 data URIs in JSON.
   app.use(express.json({ limit: "20mb" }));
   app.use(cookieParser());
@@ -49,10 +59,16 @@ export function createApp() {
   app.use("/api/stores", storesRoutes);
   app.use("/api/admin/stores", adminStoresRoutes);
   app.use("/api/addresses", addressesRoutes);
-  app.use("/api/checkout", checkoutRoutes);
+  app.use("/api/payments", paymentsRoutes);
+  app.use("/api/admin/settings", adminSettingsRoutes);
   app.use("/api/orders", ordersRoutes);
   app.use("/api/appointments", appointmentsRoutes);
   app.use("/api/admin/pickups", adminPickupsRoutes);
+  app.use("/api/track", trackRoutes);
+  app.use("/api/admin/orders", adminOrdersRoutes);
+  app.use("/api/returns", returnsRoutes);
+  app.use("/api/admin/returns", adminReturnsRoutes);
+  app.use("/api/notifications", notificationsRoutes);
 
   app.use(errorHandler);
 

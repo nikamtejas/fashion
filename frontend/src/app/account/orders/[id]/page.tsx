@@ -13,6 +13,8 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { SlotCalendar } from "@/components/checkout/SlotCalendar";
 import { CartSummary } from "@/components/cart/CartSummary";
+import { ReturnRequestModal } from "@/components/returns/ReturnRequestModal";
+import { ReturnCard, type ReturnView } from "@/components/returns/ReturnCard";
 
 interface OrderDetail {
   _id: string;
@@ -20,7 +22,7 @@ interface OrderDetail {
   status: string;
   deliveryMethod: "HOME" | "PICKUP";
   createdAt: string;
-  items: { name: string; image?: string; size?: string; color?: string; price: number; qty: number }[];
+  items: { sku: string; name: string; image?: string; size?: string; color?: string; price: number; qty: number }[];
   pricing: { subtotal: number; discount: number; gst: number; shipping: number; total: number };
   shippingAddress?: { name: string; line1: string; line2?: string; city: string; state: string; pincode: string };
   storeLocation?: { _id: string; name: string; address: string; city: string; state: string; pincode: string };
@@ -45,6 +47,9 @@ export default function OrderDetailPage() {
   const [rescheduleOpen, setRescheduleOpen] = React.useState(false);
   const [newSlot, setNewSlot] = React.useState<{ date: string; timeSlot: string } | undefined>();
   const [busy, setBusy] = React.useState(false);
+  const [returns, setReturns] = React.useState<ReturnView[]>([]);
+  const [returnOpen, setReturnOpen] = React.useState(false);
+  const [paymentMethod, setPaymentMethod] = React.useState<string | undefined>();
 
   React.useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -57,6 +62,12 @@ export default function OrderDetailPage() {
         setAppointment(data.appointment);
       })
       .catch(() => router.replace("/account/orders"));
+    apiFetch<{ returns: ReturnView[] }>(`/api/returns?orderId=${id}`)
+      .then((data) => setReturns(data.returns))
+      .catch(() => {});
+    apiFetch<{ payment: { method: string } | null }>(`/api/payments/order/${id}`)
+      .then((data) => setPaymentMethod(data.payment?.method))
+      .catch(() => {});
   }, [id, router]);
 
   React.useEffect(() => {
@@ -106,8 +117,29 @@ export default function OrderDetailPage() {
             Placed {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
           </p>
         </div>
-        <Badge variant={order.status === "DELIVERED" ? "success" : "outline"}>{order.status.replaceAll("_", " ")}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={order.status === "DELIVERED" ? "success" : "outline"}>{order.status.replaceAll("_", " ")}</Badge>
+          <Button size="sm" variant="outline" magnetic={false} onClick={() => router.push(`/track/${order._id}`)}>
+            Track order
+          </Button>
+          {order.status === "DELIVERED" && (
+            <Button size="sm" magnetic={false} onClick={() => setReturnOpen(true)}>
+              Return / refund
+            </Button>
+          )}
+        </div>
       </div>
+
+      {order.status === "PENDING_PAYMENT" && (
+        <div className="mt-6 flex items-center justify-between rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            Payment pending — your items are reserved for a limited time.
+          </p>
+          <Button size="sm" magnetic={false} onClick={() => router.push(`/orders/${order._id}/pay`)}>
+            Retry payment
+          </Button>
+        </div>
+      )}
 
       {order.deliveryMethod === "PICKUP" && order.storeLocation && appointment && (
         <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
@@ -199,6 +231,25 @@ export default function OrderDetailPage() {
           coupon={order.coupon ?? null}
         />
       </div>
+
+      {returns.length > 0 && (
+        <section className="mt-6 space-y-3">
+          <h2 className="font-display text-lg">Returns & refunds</h2>
+          {returns.map((r) => (
+            <ReturnCard key={r.id} refund={r} />
+          ))}
+        </section>
+      )}
+
+      <ReturnRequestModal
+        open={returnOpen}
+        onOpenChange={setReturnOpen}
+        orderId={order._id}
+        items={order.items}
+        defaultPincode={order.shippingAddress?.pincode ?? order.storeLocation?.pincode}
+        paymentMethod={paymentMethod}
+        onCreated={load}
+      />
 
       {order.storeLocation && (
         <Modal open={rescheduleOpen} onOpenChange={setRescheduleOpen} title="Reschedule pickup" className="max-w-xl">

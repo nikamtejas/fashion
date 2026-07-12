@@ -1,48 +1,55 @@
 function required(name: string, fallback?: string): string {
-  const value = process.env[name] ?? fallback;
+  const value = optional(process.env[name]) ?? fallback;
   if (value === undefined) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
 }
 
+/** .env templates ship keys as `KEY=` — an EMPTY string, not undefined —
+ * which would silently defeat every `?? fallback`. Blank means unset. */
+function optional(value: string | undefined): string | undefined {
+  return value && value.trim() !== "" ? value : undefined;
+}
+
 export const env = {
-  nodeEnv: process.env.NODE_ENV ?? "development",
-  port: Number(process.env.PORT ?? 4000),
-  frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
+  nodeEnv: optional(process.env.NODE_ENV) ?? "development",
+  port: Number(optional(process.env.PORT) ?? 4000),
+  frontendUrl: optional(process.env.FRONTEND_URL) ?? "http://localhost:3000",
 
-  mongodbUri: process.env.MONGODB_URI,
+  mongodbUri: optional(process.env.MONGODB_URI),
 
-  jwtSecret: process.env.JWT_SECRET ?? "dev-only-insecure-secret-change-me",
+  jwtSecret: optional(process.env.JWT_SECRET) ?? "dev-only-insecure-secret-change-me",
   cookieName: "ll_session",
 
-  googleClientId: process.env.GOOGLE_CLIENT_ID,
-  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  googleClientId: optional(process.env.GOOGLE_CLIENT_ID),
+  googleClientSecret: optional(process.env.GOOGLE_CLIENT_SECRET),
   googleRedirectUri:
-    process.env.GOOGLE_REDIRECT_URI ?? `http://localhost:${process.env.PORT ?? 4000}/api/auth/google/callback`,
+    optional(process.env.GOOGLE_REDIRECT_URI) ??
+    `http://localhost:${optional(process.env.PORT) ?? 4000}/api/auth/google/callback`,
 
-  emailServerHost: process.env.EMAIL_SERVER_HOST,
-  emailServerPort: Number(process.env.EMAIL_SERVER_PORT ?? 587),
-  emailServerUser: process.env.EMAIL_SERVER_USER,
-  emailServerPassword: process.env.EMAIL_SERVER_PASSWORD,
-  emailFrom: process.env.EMAIL_FROM ?? "LuxeLoom <no-reply@luxeloom.example>",
+  emailServerHost: optional(process.env.EMAIL_SERVER_HOST),
+  emailServerPort: Number(optional(process.env.EMAIL_SERVER_PORT) ?? 587),
+  emailServerUser: optional(process.env.EMAIL_SERVER_USER),
+  emailServerPassword: optional(process.env.EMAIL_SERVER_PASSWORD),
+  emailFrom: optional(process.env.EMAIL_FROM) ?? "LuxeLoom <no-reply@luxeloom.example>",
 
-  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
-  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
-  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+  cloudinaryCloudName: optional(process.env.CLOUDINARY_CLOUD_NAME),
+  cloudinaryApiKey: optional(process.env.CLOUDINARY_API_KEY),
+  cloudinaryApiSecret: optional(process.env.CLOUDINARY_API_SECRET),
 
   integrationsMock: process.env.INTEGRATIONS_MOCK !== "false",
 
-  geminiApiKey: process.env.GEMINI_API_KEY,
-  geminiImageModelPrimary: process.env.GEMINI_IMAGE_MODEL_PRIMARY ?? "gemini-3-pro-image-preview",
-  geminiImageModelFast: process.env.GEMINI_IMAGE_MODEL_FAST ?? "gemini-3.1-flash-image",
-  razorpayKeyId: process.env.RAZORPAY_KEY_ID,
-  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
-  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
-  snapmintMerchantId: process.env.SNAPMINT_MERCHANT_ID,
-  snapmintApiKey: process.env.SNAPMINT_API_KEY,
-  bluedartLicenseKey: process.env.BLUEDART_LICENSE_KEY,
-  bluedartLoginId: process.env.BLUEDART_LOGIN_ID,
+  geminiApiKey: optional(process.env.GEMINI_API_KEY),
+  geminiImageModelPrimary: optional(process.env.GEMINI_IMAGE_MODEL_PRIMARY) ?? "gemini-3-pro-image-preview",
+  geminiImageModelFast: optional(process.env.GEMINI_IMAGE_MODEL_FAST) ?? "gemini-3.1-flash-image",
+  razorpayKeyId: optional(process.env.RAZORPAY_KEY_ID),
+  razorpayKeySecret: optional(process.env.RAZORPAY_KEY_SECRET),
+  razorpayWebhookSecret: optional(process.env.RAZORPAY_WEBHOOK_SECRET),
+  snapmintMerchantId: optional(process.env.SNAPMINT_MERCHANT_ID),
+  snapmintApiKey: optional(process.env.SNAPMINT_API_KEY),
+  bluedartLicenseKey: optional(process.env.BLUEDART_LICENSE_KEY),
+  bluedartLoginId: optional(process.env.BLUEDART_LOGIN_ID),
 };
 
 export { required };

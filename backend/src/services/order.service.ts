@@ -4,6 +4,7 @@ import { Cart } from "../models/Cart";
 import { Product } from "../models/Product";
 import { Coupon } from "../models/Coupon";
 import { Order } from "../models/Order";
+import { Payment } from "../models/Payment";
 import { PickupAppointment } from "../models/PickupAppointment";
 import { StoreLocation, DEFAULT_PICKUP_CONFIG, type StoreLocationDoc } from "../models/StoreLocation";
 import { buildCartView } from "./cart.service";
@@ -26,6 +27,16 @@ export interface PlaceOrderInput {
   address?: AddressInput;
   storeId?: string;
   appointment?: { date: string; timeSlot: string };
+  /** M5: which payment rail this order will settle on. */
+  paymentMethod: "RAZORPAY" | "COD" | "SNAPMINT";
+  /** COD convenience fee (from Settings) added as its own pricing line. */
+  codFee?: number;
+  /**
+   * PENDING_PAYMENT reserves stock while an online payment completes (the
+   * 15-minute cleanup releases it on abandonment); PLACED is for COD which
+   * confirms immediately after its OTP.
+   */
+  initialStatus: "PENDING_PAYMENT" | "PLACED";
 }
 
 function generateOrderNumber(): string {
@@ -107,6 +118,8 @@ export async function placeOrder(input: PlaceOrderInput) {
 
       // 3. Create the order with full snapshots.
       const orderNumber = generateOrderNumber();
+      const codFee = input.paymentMethod === "COD" ? (input.codFee ?? 0) : 0;
+      const total = Math.round((view.totals.total + codFee) * 100) / 100;
       const [order] = await Order.create(
         [
           {
@@ -127,19 +140,29 @@ export async function placeOrder(input: PlaceOrderInput) {
               discount: view.totals.discount,
               gst: view.totals.gst,
               shipping: view.totals.shipping,
+              codFee,
               loyaltyRedeemed: 0,
-              total: view.totals.total,
+              total,
             },
             coupon: couponId,
             deliveryMethod: input.deliveryMethod,
             shippingAddress: input.deliveryMethod === "HOME" ? input.address : undefined,
             storeLocation: store?._id,
-            status: "PLACED",
+            status: input.initialStatus,
           },
         ],
         { session }
       );
       orderId = String(order._id);
+
+      // 3b. The payment record rides in the same transaction so an order
+      // can never exist without its payment (and vice versa).
+      const [payment] = await Payment.create(
+        [{ order: order._id, method: input.paymentMethod, status: "PENDING", amount: total, codConvenienceFee: codFee }],
+        { session }
+      );
+      order.payment = payment._id;
+      await order.save({ session });
 
       // 4. Pickup appointment with its QR code.
       if (input.deliveryMethod === "PICKUP" && store && input.appointment) {
@@ -163,24 +186,77 @@ export async function placeOrder(input: PlaceOrderInput) {
       await Cart.updateOne({ user: input.userId }, { $set: { items: [], coupon: undefined } }, { session });
     });
 
-    // Confirmation email (mock logs in dev) — outside the transaction.
-    const user = await User.findById(input.userId).select("email").lean();
-    if (user) {
-      const order = await Order.findById(orderId).lean();
-      await sendEmail(
-        user.email,
-        `Your LuxeLoom order ${order?.orderNumber} is placed`,
-        `Thanks for shopping with LuxeLoom. Order total: ₹${order?.pricing.total}. ${
-          input.deliveryMethod === "PICKUP"
-            ? `Pickup at ${store?.name} on ${input.appointment?.date}, ${input.appointment?.timeSlot}.`
-            : "We'll email you when it ships."
-        }`
-      );
+    // Confirmation email (mock logs in dev) — outside the transaction, and
+    // only for immediately-confirmed orders. Online payments email after
+    // successful verification instead.
+    if (input.initialStatus === "PLACED") {
+      await sendOrderConfirmationEmail(orderId!);
     }
 
     return Order.findById(orderId).populate("storeLocation", "name address city pincode").lean();
   } finally {
     await session.endSession();
+  }
+}
+
+export async function sendOrderConfirmationEmail(orderId: string) {
+  const order = await Order.findById(orderId).populate("storeLocation", "name").lean();
+  if (!order) return;
+  const user = await User.findById(order.user).select("email").lean();
+  if (!user) return;
+  const appointment =
+    order.deliveryMethod === "PICKUP" ? await PickupAppointment.findOne({ order: order._id }).lean() : null;
+  await sendEmail(
+    user.email,
+    `Your LuxeLoom order ${order.orderNumber} is confirmed`,
+    `Thanks for shopping with LuxeLoom. Order total: ₹${order.pricing.total}. ${
+      appointment
+        ? `Pickup at ${(order.storeLocation as unknown as { name?: string })?.name} on ${appointment.date.toISOString().slice(0, 10)}, ${appointment.timeSlot}.`
+        : "We'll email you when it ships."
+    }`
+  );
+}
+
+/**
+ * Releases stock reserved by online-payment orders that never completed:
+ * any PENDING_PAYMENT order older than 15 minutes is cancelled, its stock
+ * restored, its coupon un-consumed and its payment marked FAILED. Runs on
+ * the server's sweep interval.
+ */
+export const PAYMENT_RESERVATION_TTL_MS = 15 * 60 * 1000;
+
+export async function releaseStaleReservations(now = new Date()) {
+  const cutoff = new Date(now.getTime() - PAYMENT_RESERVATION_TTL_MS);
+  const stale = await Order.find({ status: "PENDING_PAYMENT", createdAt: { $lt: cutoff } });
+
+  for (const order of stale) {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        for (const item of order.items) {
+          await Product.updateOne(
+            { _id: item.product, "variants.sku": item.sku },
+            { $inc: { "variants.$[v].stock": item.qty } },
+            { arrayFilters: [{ "v.sku": item.sku }], session }
+          );
+        }
+        if (order.coupon) {
+          await Coupon.updateOne({ _id: order.coupon, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } }, { session });
+        }
+        order.status = "CANCELLED";
+        await order.save({ session });
+        await Payment.updateOne({ order: order._id, status: "PENDING" }, { status: "FAILED" }, { session });
+        await PickupAppointment.updateOne(
+          { order: order._id, status: { $in: ["BOOKED", "READY"] } },
+          { status: "CANCELLED" },
+          { session }
+        );
+      });
+      // eslint-disable-next-line no-console
+      console.log(`[payments] released stale reservation for order ${order.orderNumber}`);
+    } finally {
+      await session.endSession();
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { MegaMenu } from "@/components/layout/MegaMenu";
 import { SearchBar } from "@/components/layout/SearchBar";
 import { ProfileMenu } from "@/components/layout/ProfileMenu";
+import { NotificationsBell } from "@/components/layout/NotificationsBell";
 import { useCartStore } from "@/store/cartStore";
 import { useFavoritesStore } from "@/store/favoritesStore";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ export function Navbar() {
             <ShoppingBag className="h-5 w-5" />
             <IconCount count={cartCount} />
           </button>
+          <NotificationsBell />
           <ProfileMenu />
         </div>
       </div>

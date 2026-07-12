@@ -14,6 +14,7 @@ import { CartLineItem } from "@/components/cart/CartLineItem";
 import { CartSummary } from "@/components/cart/CartSummary";
 import { FreeShippingBar } from "@/components/cart/FreeShippingBar";
 import { CouponBox } from "@/components/cart/CouponBox";
+import { EmiWidget } from "@/components/product/EmiWidget";
 
 export default function CartPage() {
   const { user, loading: authLoading } = useAuth();
@@ -80,6 +81,9 @@ export default function CartPage() {
             <CouponBox />
             <div className="my-4 h-px bg-border" />
             <CartSummary totals={cart.totals} coupon={cart.coupon} />
+            <div className="mt-3">
+              <EmiWidget amount={cart.totals.total} variant="compact" />
+            </div>
             <Button size="lg" className="mt-5 w-full" onClick={() => router.push("/checkout")}>
               Checkout
             </Button>

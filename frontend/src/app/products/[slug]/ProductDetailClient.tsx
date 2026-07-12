@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useFavoritesStore } from "@/store/favoritesStore";
 import { useCartStore } from "@/store/cartStore";
 import { ProductGallery } from "@/components/product/ProductGallery";
+import { EmiWidget } from "@/components/product/EmiWidget";
 import { SizeGuideModal } from "@/components/product/SizeGuideModal";
 import { ShareButton } from "@/components/product/ShareButton";
 import { CompleteTheLook } from "@/components/product/CompleteTheLook";
@@ -86,6 +87,10 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
               ★ {product.ratingAvg.toFixed(1)} ({product.ratingCount} reviews)
             </p>
           )}
+
+          <div className="mt-4 max-w-md">
+            <EmiWidget amount={product.pricing.finalPrice} />
+          </div>
 
           <p className="mt-6 max-w-md text-sm leading-relaxed text-foreground/70">{product.description}</p>
 

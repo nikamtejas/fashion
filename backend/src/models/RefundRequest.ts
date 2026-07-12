@@ -33,8 +33,17 @@ const RefundRequestSchema = new Schema(
     refundAmount: { type: Number },
     storeLocation: { type: Schema.Types.ObjectId, ref: "StoreLocation" },
     appointment: { type: Schema.Types.ObjectId, ref: "PickupAppointment" },
+    /** Reverse-pickup shipment when method is COURIER. */
+    reverseShipment: { type: Schema.Types.ObjectId, ref: "Shipment" },
+    /** COD orders refund via manual bank payout — details supplied by the customer. */
+    bankDetails: {
+      accountName: { type: String },
+      accountNumber: { type: String },
+      ifsc: { type: String },
+    },
     expectedCreditDate: { type: Date },
     rejectionReason: { type: String },
+    qcNotes: { type: String },
   },
   { timestamps: true }
 );

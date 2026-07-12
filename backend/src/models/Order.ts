@@ -36,6 +36,7 @@ const OrderPricingSchema = new Schema(
     discount: { type: Number, default: 0 },
     gst: { type: Number, default: 0 },
     shipping: { type: Number, default: 0 },
+    codFee: { type: Number, default: 0 },
     loyaltyRedeemed: { type: Number, default: 0 },
     total: { type: Number, required: true },
   },
@@ -43,6 +44,7 @@ const OrderPricingSchema = new Schema(
 );
 
 export const ORDER_STATUSES = [
+  "PENDING_PAYMENT",
   "PLACED",
   "CONFIRMED",
   "PACKED",
