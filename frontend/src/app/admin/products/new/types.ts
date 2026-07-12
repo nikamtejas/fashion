@@ -8,6 +8,7 @@ export interface WizardImage {
   color?: string;
   altText?: string;
   order: number;
+  isCover?: boolean;
   faithfulnessFlag?: boolean;
 }
 

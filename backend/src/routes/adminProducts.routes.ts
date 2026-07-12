@@ -189,6 +189,25 @@ router.delete("/:id/images/:imageId", async (req, res) => {
   res.json({ product });
 });
 
+/** Marks one image as the storefront cover (poster on shop cards, first
+ * gallery photo) — exclusive, so the flag is cleared on every other image. */
+router.patch("/:id/images/:imageId/cover", async (req, res) => {
+  const product = await Product.findById(req.params.id);
+  if (!product) return res.status(404).json({ error: "Product not found" });
+
+  const target = product.images.find(
+    (img) => String((img as unknown as { _id: unknown })._id) === req.params.imageId
+  );
+  if (!target) return res.status(404).json({ error: "Image not found" });
+
+  for (const img of product.images) {
+    img.isCover = img === target;
+  }
+  await product.save();
+
+  res.json({ product });
+});
+
 const reorderSchema = z.object({ imageIds: z.array(z.string()) });
 
 router.patch("/:id/images/reorder", async (req, res) => {

@@ -7,7 +7,7 @@ export interface ProductDetail {
   tags: string[];
   category: { name: string; slug: string } | string;
   variants: { size: string; color: string; colorHex?: string; sku: string; stock: number }[];
-  images: { publicId: string; url: string; type: string; altText?: string; order: number }[];
+  images: { publicId: string; url: string; type: string; altText?: string; order: number; isCover?: boolean }[];
   pricing: { finalPrice: number; mrp?: number };
   ratingAvg: number;
   ratingCount: number;

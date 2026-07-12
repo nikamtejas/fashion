@@ -40,10 +40,11 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const [selectedColor, setSelectedColor] = React.useState<string | null>(colors[0]?.[0] ?? null);
 
   // Prefer AI-enhanced shots, but fall back to the original photos —
-  // seeded products only have ORIGINAL images.
-  const enhanced = product.images.filter((img) => img.type !== "ORIGINAL");
+  // seeded products only have ORIGINAL images. An admin-chosen cover is
+  // always included (even if it's an ORIGINAL) and leads the gallery.
+  const enhanced = product.images.filter((img) => img.type !== "ORIGINAL" || img.isCover);
   const galleryImages = [...(enhanced.length > 0 ? enhanced : product.images)]
-    .sort((a, b) => a.order - b.order)
+    .sort((a, b) => Number(b.isCover ?? false) - Number(a.isCover ?? false) || a.order - b.order)
     .map((img) => ({ url: img.url, altText: img.altText, type: img.type }));
 
   const selectedVariant = product.variants.find((v) => v.size === selectedSize && v.color === selectedColor);

@@ -21,6 +21,7 @@ const ProductImageSchema = new Schema(
     color: { type: String }, // ties image to a variant color; untagged = shown for all colors
     altText: { type: String },
     order: { type: Number, default: 0 },
+    isCover: { type: Boolean, default: false }, // admin-chosen storefront poster; at most one per product
     faithfulnessFlag: { type: Boolean, default: false }, // set by M2 vision faithfulness check
   },
   { _id: true }

@@ -12,18 +12,28 @@ function serializeProduct(p: {
   _id: unknown;
   name: string;
   slug: string;
-  images: { publicId: string; type: string }[];
+  images: { publicId: string; type: string; side?: string | null; isCover?: boolean | null }[];
   pricing?: { finalPrice?: number | null; mrp?: number | null } | null;
   variants?: { size: string; color: string; colorHex?: string | null; stock: number }[];
 }) {
-  const hoverImage = p.images?.find((img) => img.type === "AI_MODEL") ?? p.images?.[1];
+  const images = p.images ?? [];
+  // Poster: an admin-chosen cover wins; otherwise prefer the generated sales
+  // shots — the casual ORIGINAL uploads sit first in the array (generated
+  // photos are appended after them) and must not leak onto the shop card.
+  const poster =
+    images.find((img) => img.isCover) ??
+    images.find((img) => img.type === "STUDIO" && img.side === "FRONT") ??
+    images.find((img) => img.type !== "ORIGINAL") ??
+    images[0];
+  const hoverImage =
+    images.find((img) => img.type === "AI_MODEL" && img !== poster) ?? images.find((img) => img !== poster);
   return {
     id: String(p._id),
     name: p.name,
     slug: p.slug,
     price: p.pricing?.finalPrice ?? 0,
     mrp: p.pricing?.mrp ?? undefined,
-    image: p.images?.[0]?.publicId ? cloudinaryUrl(p.images[0].publicId, 600) : null,
+    image: poster?.publicId ? cloudinaryUrl(poster.publicId, 600) : null,
     hoverImage: hoverImage?.publicId ? cloudinaryUrl(hoverImage.publicId, 600) : null,
     sizes: [...new Set((p.variants ?? []).map((v) => v.size))],
     colors: [...new Map((p.variants ?? []).map((v) => [v.color, v.colorHex])).entries()].map(([name, hex]) => ({

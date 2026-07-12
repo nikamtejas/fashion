@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, RotateCcw, Trash2, Upload, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Sparkles, RotateCcw, Trash2, Upload, AlertTriangle, CheckCircle2, Star } from "lucide-react";
 import { apiFetch, API_URL } from "@/lib/api";
 import { fileToDataUri } from "@/lib/imageQuality";
 import { Button } from "@/components/ui/Button";
@@ -67,6 +67,16 @@ export function ImagesStep({
   const studioBack = product.images.find((i) => i.type === "STUDIO" && i.side === "BACK");
   const modelFront = product.images.find((i) => i.type === "AI_MODEL" && i.slot === "MODEL_FRONT");
   const lifestyle = product.images.find((i) => i.type === "AI_MODEL" && i.slot === "LIFESTYLE");
+
+  // Which photo the storefront poster currently uses — an explicit cover
+  // choice, else the same default the backend applies (studio front, then
+  // any generated shot, then the first upload).
+  const effectiveCoverId = (
+    product.images.find((i) => i.isCover) ??
+    studioFront ??
+    product.images.find((i) => i.type !== "ORIGINAL") ??
+    product.images[0]
+  )?._id;
 
   async function refetchProduct() {
     const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}`);
@@ -142,6 +152,35 @@ export function ImagesStep({
     await refetchProduct();
   }
 
+  async function handleSetCover(image: WizardImage) {
+    try {
+      await apiFetch(`/api/admin/products/${product._id}/images/${image._id}/cover`, { method: "PATCH" });
+      await refetchProduct();
+      toast({ title: "Storefront cover updated", description: "This photo now leads the shop card and gallery.", variant: "success" });
+    } catch (err) {
+      toast({ title: "Couldn't set cover", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    }
+  }
+
+  /** Badge when the photo is the current storefront poster, otherwise a
+   * one-click switch — the explicit original-vs-generated choice. */
+  function coverControl(image?: WizardImage) {
+    if (!image) return null;
+    return image._id === effectiveCoverId ? (
+      <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-accent">
+        <Star className="h-3 w-3 fill-current" /> Storefront cover
+      </span>
+    ) : (
+      <button
+        type="button"
+        onClick={() => handleSetCover(image)}
+        className="mt-1.5 flex items-center gap-1 text-[11px] text-foreground/50 underline underline-offset-2 hover:text-foreground"
+      >
+        <Star className="h-3 w-3" /> Use as storefront cover
+      </button>
+    );
+  }
+
   async function handleReplaceOwnPhoto(image: WizardImage, file: File) {
     const dataUri = await fileToDataUri(file);
     await apiFetch(`/api/admin/products/${product._id}/images`, {
@@ -161,8 +200,14 @@ export function ImagesStep({
           four-photo sales set.
         </p>
         <div className="grid grid-cols-2 gap-4 sm:max-w-md">
-          <PhotoDropzone label="Front" currentUrl={front?.secureUrl} onSelect={(uri) => handleUploadOriginal("FRONT", uri)} />
-          <PhotoDropzone label="Back" currentUrl={back?.secureUrl} onSelect={(uri) => handleUploadOriginal("BACK", uri)} />
+          <div>
+            <PhotoDropzone label="Front" currentUrl={front?.secureUrl} onSelect={(uri) => handleUploadOriginal("FRONT", uri)} />
+            {coverControl(front)}
+          </div>
+          <div>
+            <PhotoDropzone label="Back" currentUrl={back?.secureUrl} onSelect={(uri) => handleUploadOriginal("BACK", uri)} />
+            {coverControl(back)}
+          </div>
         </div>
       </div>
 
@@ -211,6 +256,7 @@ export function ImagesStep({
           onRegenerate={(instruction) => handleRegenerate("studio_front", instruction)}
           onDiscard={studioFront ? () => handleDiscard(studioFront) : undefined}
           onReplace={studioFront ? (f) => handleReplaceOwnPhoto(studioFront, f) : undefined}
+          coverNode={coverControl(studioFront)}
         />
         <PhotoResultCard
           slotKey="studio_back"
@@ -220,6 +266,7 @@ export function ImagesStep({
           onRegenerate={(instruction) => handleRegenerate("studio_back", instruction)}
           onDiscard={studioBack ? () => handleDiscard(studioBack) : undefined}
           onReplace={studioBack ? (f) => handleReplaceOwnPhoto(studioBack, f) : undefined}
+          coverNode={coverControl(studioBack)}
         />
         <PhotoResultCard
           slotKey="model_front"
@@ -229,6 +276,7 @@ export function ImagesStep({
           onRegenerate={(instruction) => handleRegenerate("model_front", instruction)}
           onDiscard={modelFront ? () => handleDiscard(modelFront) : undefined}
           onReplace={modelFront ? (f) => handleReplaceOwnPhoto(modelFront, f) : undefined}
+          coverNode={coverControl(modelFront)}
           aiModelLabel
         />
         <PhotoResultCard
@@ -239,6 +287,7 @@ export function ImagesStep({
           onRegenerate={(instruction) => handleRegenerate("lifestyle", instruction)}
           onDiscard={lifestyle ? () => handleDiscard(lifestyle) : undefined}
           onReplace={lifestyle ? (f) => handleReplaceOwnPhoto(lifestyle, f) : undefined}
+          coverNode={coverControl(lifestyle)}
           aiModelLabel
         />
       </div>
@@ -303,6 +352,7 @@ function PhotoResultCard({
   onRegenerate,
   onDiscard,
   onReplace,
+  coverNode,
   aiModelLabel,
 }: {
   slotKey: Slot;
@@ -312,6 +362,7 @@ function PhotoResultCard({
   onRegenerate: (instruction?: string) => void;
   onDiscard?: () => void;
   onReplace?: (file: File) => void;
+  coverNode?: React.ReactNode;
   aiModelLabel?: boolean;
 }) {
   const [instruction, setInstruction] = React.useState("");
@@ -350,6 +401,8 @@ function PhotoResultCard({
           Visualized on AI model
         </span>
       )}
+
+      {coverNode}
 
       {image?.faithfulnessFlag && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-600">
