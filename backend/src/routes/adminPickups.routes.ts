@@ -4,7 +4,10 @@ import { PickupAppointment } from "../models/PickupAppointment";
 import { requireAdmin } from "../middleware/auth";
 import { Order } from "../models/Order";
 import { User } from "../models/User";
-import { sendEmail } from "../lib/mailer";
+import { Payment } from "../models/Payment";
+import { sendEmail, sendOtpEmail } from "../lib/mailer";
+import { findValidOtp, issueOtp } from "../lib/otp";
+import { sendDeliveredEmail } from "../services/orderEmails.service";
 
 const router = Router();
 router.use(requireAdmin);
@@ -59,26 +62,100 @@ router.post("/:id/ready", async (req, res) => {
   res.json({ appointment: appt });
 });
 
-const completeSchema = z.object({ qrCode: z.string().min(4) });
+/** Counter scan station: everything the staff member needs to see after
+ * scanning any pickup QR — order, items, customer, payment state. */
+router.get("/lookup/:qrCode", async (req, res) => {
+  const qrCode = req.params.qrCode.toUpperCase().trim();
+  const appt = await PickupAppointment.findOne({ qrCode }).populate("storeLocation", "name city").lean();
+  if (!appt) return res.status(404).json({ error: "No pickup appointment matches this code" });
 
-/** "Scan" = the staff member enters/scans the customer's QR code; it must
- * match this appointment's code. */
+  const order = await Order.findById(appt.order)
+    .select("orderNumber status items pricing user")
+    .populate("user", "name email phone")
+    .lean();
+  if (!order) return res.status(404).json({ error: "Order for this pickup no longer exists" });
+  const payment = await Payment.findOne({ order: order._id }).select("method status").lean();
+
+  const user = order.user as unknown as { name?: string; email?: string; phone?: string } | null;
+  res.json({
+    appointment: {
+      _id: appt._id,
+      status: appt.status,
+      date: appt.date,
+      timeSlot: appt.timeSlot,
+      qrCode: appt.qrCode,
+      store: appt.storeLocation,
+    },
+    order: {
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      items: order.items.map((i) => ({ name: i.name, size: i.size, color: i.color, qty: i.qty, price: i.price, image: i.image })),
+      total: order.pricing.total,
+    },
+    customer: { name: user?.name, email: user?.email, phone: user?.phone },
+    payment: {
+      method: payment?.method ?? "—",
+      status: payment?.status ?? "PENDING",
+      /** Cash the counter must collect before handover (COD not yet paid). */
+      dueAmount: payment?.method === "COD" && payment?.status !== "PAID" ? order.pricing.total : 0,
+    },
+  });
+});
+
+/** Handover OTP: emails the customer a one-time code the staff member can
+ * enter instead of the QR (customer can't open the QR, phone died, etc.). */
+router.post("/:id/handover-otp", async (req, res) => {
+  const appt = await PickupAppointment.findById(req.params.id).lean();
+  if (!appt) return res.status(404).json({ error: "Appointment not found" });
+  if (!["BOOKED", "READY"].includes(appt.status)) {
+    return res.status(400).json({ error: `This appointment is ${appt.status}` });
+  }
+  const order = await Order.findById(appt.order).select("user").lean();
+  const user = order ? await User.findById(order.user).select("email").lean() : null;
+  if (!user) return res.status(404).json({ error: "Customer account not found for this order" });
+
+  const code = await issueOtp(`pickup:${appt.qrCode}`);
+  await sendOtpEmail(user.email, code);
+  res.json({ ok: true, sentTo: user.email });
+});
+
+const completeSchema = z
+  .object({ qrCode: z.string().min(4).optional(), otp: z.string().min(4).optional() })
+  .refine((d) => d.qrCode || d.otp, { message: "Provide the QR code or the handover OTP" });
+
+/** Handover: verified by the scanned QR code OR the emailed handover OTP.
+ * Marks the appointment complete, collects COD cash, sets the order
+ * DELIVERED and sends the delivered email with the GST invoice. */
 router.post("/:id/complete", async (req, res) => {
   const parsed = completeSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Enter the pickup code" });
+  if (!parsed.success) return res.status(400).json({ error: "Enter the pickup code or OTP" });
 
   const appt = await PickupAppointment.findById(req.params.id);
   if (!appt) return res.status(404).json({ error: "Appointment not found" });
   if (!["BOOKED", "READY"].includes(appt.status)) {
     return res.status(400).json({ error: `This appointment is ${appt.status}` });
   }
-  if (appt.qrCode !== parsed.data.qrCode.toUpperCase().trim()) {
-    return res.status(400).json({ error: "Pickup code doesn't match" });
+
+  if (parsed.data.qrCode) {
+    if (appt.qrCode !== parsed.data.qrCode.toUpperCase().trim()) {
+      return res.status(400).json({ error: "Pickup code doesn't match" });
+    }
+  } else {
+    const token = await findValidOtp(`pickup:${appt.qrCode}`, parsed.data.otp!.trim());
+    if (!token) return res.status(401).json({ error: "Incorrect or expired handover OTP" });
+    token.consumedAt = new Date();
+    await token.save();
   }
 
   appt.status = "COMPLETED";
   await appt.save();
+
+  // COD pickups pay cash at the counter — handover is the payment moment.
+  await Payment.updateOne({ order: appt.order, method: "COD", status: "PENDING" }, { $set: { status: "PAID" } });
+
   await Order.updateOne({ _id: appt.order }, { status: "DELIVERED" });
+  sendDeliveredEmail(String(appt.order)).catch((e) => console.error("delivered email failed:", e));
 
   res.json({ appointment: appt });
 });

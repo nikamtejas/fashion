@@ -50,16 +50,22 @@ export async function lookupPincode(pincode: string): Promise<PincodeInfo | null
   }
 
   if (lookupCache.has(pincode)) return lookupCache.get(pincode)!;
-  const res = await withTimeout(
-    fetch(`https://api.postalpincode.in/pincode/${pincode}`),
-    8000,
-    "pincode:lookup"
-  );
-  const data = (await res.json()) as { Status: string; PostOffice?: { District: string; State: string }[] }[];
-  const office = data?.[0]?.PostOffice?.[0];
-  const info = office ? { city: office.District, state: office.State } : null;
-  lookupCache.set(pincode, info);
-  return info;
+  try {
+    const res = await withTimeout(
+      fetch(`https://api.postalpincode.in/pincode/${pincode}`),
+      8000,
+      "pincode:lookup"
+    );
+    const data = (await res.json()) as { Status: string; PostOffice?: { District: string; State: string }[] }[];
+    const office = data?.[0]?.PostOffice?.[0];
+    const info = office ? { city: office.District, state: office.State } : null;
+    // Cache hits only — a timeout or rate-limit must not poison the cache
+    // and permanently reject a real pincode.
+    if (info) lookupCache.set(pincode, info);
+    return info;
+  } catch {
+    return null;
+  }
 }
 
 /** Rough geocode of a pincode for nearest-store math. Mock is anchored to
@@ -76,16 +82,42 @@ export async function geocodePincode(pincode: string): Promise<GeoPoint | null> 
   }
 
   if (geocodeCache.has(pincode)) return geocodeCache.get(pincode)!;
-  const res = await withTimeout(
-    fetch(`https://nominatim.openstreetmap.org/search?postalcode=${pincode}&country=india&format=json&limit=1`, {
-      headers: { "User-Agent": "LuxeLoom/1.0" },
-    }),
-    8000,
-    "pincode:geocode"
-  );
-  const data = (await res.json()) as { lat: string; lon: string }[];
-  const point = data[0] ? { lat: Number(data[0].lat), lng: Number(data[0].lon) } : null;
-  geocodeCache.set(pincode, point);
+
+  // Nominatim first (exact postal-code centroid), but it rate-limits at
+  // 1 req/s and its Indian pincode coverage is patchy — never let it be
+  // the only word on whether a pincode "exists".
+  let point: GeoPoint | null = null;
+  try {
+    const res = await withTimeout(
+      fetch(`https://nominatim.openstreetmap.org/search?postalcode=${pincode}&country=india&format=json&limit=1`, {
+        headers: { "User-Agent": "LuxeLoom/1.0" },
+      }),
+      8000,
+      "pincode:geocode"
+    );
+    const data = (await res.json()) as { lat: string; lon: string }[];
+    point = data[0] ? { lat: Number(data[0].lat), lng: Number(data[0].lon) } : null;
+  } catch {
+    point = null;
+  }
+
+  // Fallback 1: India Post knows every pincode — geocode its district town.
+  if (!point) {
+    const info = await lookupPincode(pincode);
+    if (info) point = await geocodeAddress(`${info.city}, ${info.state}`).catch(() => null);
+  }
+
+  // Fallback 2: postal-circle anchor (first digit) with deterministic
+  // jitter — coarse, but a structurally valid pincode never hard-fails.
+  if (!point) {
+    const anchor = ANCHORS[pincode[0]];
+    if (anchor) {
+      point = { lat: anchor.lat + hashJitter(pincode), lng: anchor.lng + hashJitter(pincode.split("").reverse().join("")) };
+    }
+  }
+
+  // Cache successes only — transient failures must stay retryable.
+  if (point) geocodeCache.set(pincode, point);
   return point;
 }
 
@@ -98,16 +130,21 @@ export async function geocodeAddress(query: string): Promise<GeoPoint | null> {
 
   const key = `addr:${query.toLowerCase()}`;
   if (geocodeCache.has(key)) return geocodeCache.get(key)!;
-  const res = await withTimeout(
-    fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=in&format=json&limit=1`,
-      { headers: { "User-Agent": "LuxeLoom/1.0" } }
-    ),
-    8000,
-    "pincode:geocodeAddress"
-  );
-  const data = (await res.json()) as { lat: string; lon: string }[];
-  const point = data[0] ? { lat: Number(data[0].lat), lng: Number(data[0].lon) } : null;
-  geocodeCache.set(key, point);
-  return point;
+  try {
+    const res = await withTimeout(
+      fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=in&format=json&limit=1`,
+        { headers: { "User-Agent": "LuxeLoom/1.0" } }
+      ),
+      8000,
+      "pincode:geocodeAddress"
+    );
+    const data = (await res.json()) as { lat: string; lon: string }[];
+    const point = data[0] ? { lat: Number(data[0].lat), lng: Number(data[0].lon) } : null;
+    // Cache successes only — see geocodePincode.
+    if (point) geocodeCache.set(key, point);
+    return point;
+  } catch {
+    return null;
+  }
 }
