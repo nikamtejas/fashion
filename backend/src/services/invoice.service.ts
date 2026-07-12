@@ -193,7 +193,7 @@ export async function renderInvoiceA4(data: InvoiceRenderData): Promise<PDFKit.P
   const tableTop = doc.y;
   const cols = [40, 250, 310, 360, 420, 490];
   doc.font("Helvetica-Bold").fontSize(8);
-  ["Item", "HSN", "Qty", "Rate ₹", "GST %", "Amount ₹"].forEach((h, i) => doc.text(h, cols[i], tableTop, { width: (cols[i + 1] ?? 555) - cols[i] - 8 }));
+  ["Item", "HSN", "Qty", "Rate Rs.", "GST %", "Amount Rs."].forEach((h, i) => doc.text(h, cols[i], tableTop, { width: (cols[i + 1] ?? 555) - cols[i] - 8 }));
   doc.moveTo(40, tableTop + 12).lineTo(555, tableTop + 12).strokeColor("#999").stroke();
 
   let y = tableTop + 18;
@@ -230,7 +230,7 @@ export async function renderInvoiceA4(data: InvoiceRenderData): Promise<PDFKit.P
   }
   doc.font("Helvetica-Bold").fontSize(11);
   doc.text("TOTAL", 360, y + 2, { width: 120, align: "right" });
-  doc.text(`₹${invoice.total.toFixed(2)}`, 470, y + 2, { width: 85, align: "right" });
+  doc.text(`Rs. ${invoice.total.toFixed(2)}`, 470, y + 2, { width: 85, align: "right" });
   y += 24;
 
   doc.font("Helvetica-Oblique").fontSize(8).text(`Amount in words: ${invoice.amountInWords}`, 40, y, { width: 515 });
@@ -278,7 +278,7 @@ export async function renderInvoiceThermal(data: InvoiceRenderData): Promise<PDF
     row("CGST (incl.)", invoice.cgst.toFixed(2));
     row("SGST (incl.)", invoice.sgst.toFixed(2));
   }
-  row("TOTAL", `₹${invoice.total.toFixed(2)}`, true);
+  row("TOTAL", `Rs. ${invoice.total.toFixed(2)}`, true);
 
   doc.moveDown(0.4);
   doc.font("Helvetica").fontSize(6).text(invoice.amountInWords ?? "", center);
@@ -288,6 +288,118 @@ export async function renderInvoiceThermal(data: InvoiceRenderData): Promise<PDF
   doc.image(Buffer.from(qr.split(",")[1], "base64"), width / 2 - 30, doc.y, { width: 60 });
   doc.y += 66;
   doc.fontSize(6).text("Thank you for shopping with LuxeLoom", center);
+
+  doc.end();
+  return doc;
+}
+
+/** Collects a finished pdfkit stream into a Buffer (for email attachments).
+ * Safe to call after doc.end() — readable streams buffer until read. */
+export function pdfToBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    doc.on("data", (c) => chunks.push(c as Buffer));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+  });
+}
+
+/** A4 order confirmation — the "your order is in" document attached to the
+ * confirmation email. Not a tax document; the GST invoice follows the
+ * same order and is attached on delivery. */
+export async function renderOrderConfirmationA4(opts: {
+  order: {
+    _id: unknown;
+    orderNumber: string;
+    createdAt?: Date;
+    items: { name: string; size?: string | null; color?: string | null; qty: number; price: number }[];
+    pricing: { subtotal: number; discount: number; gst: number; shipping: number; codFee?: number; total: number };
+    shippingAddress?: { name: string; line1: string; line2?: string | null; city: string; state: string; pincode: string } | null;
+    deliveryMethod: string;
+  };
+  customer: { name?: string | null; email: string };
+  pickup?: { storeName?: string; date?: string; timeSlot?: string } | null;
+}): Promise<PDFKit.PDFDocument> {
+  const { order, customer, pickup } = opts;
+  const doc = new PDFDocument({ size: "A4", margin: 40 });
+
+  doc.fontSize(18).font("Helvetica-Bold").text(BUSINESS.name);
+  doc.fontSize(8).font("Helvetica").fillColor("#444");
+  doc.text(BUSINESS.address);
+  doc.text(BUSINESS.email);
+  doc.fillColor("#000").moveDown(0.5);
+
+  const qr = await orderQr(order._id);
+  doc.image(Buffer.from(qr.split(",")[1], "base64"), 475, 40, { width: 80 });
+  doc.fontSize(6).fillColor("#666").text("Scan for order", 475, 124, { width: 80, align: "center" });
+  doc.fillColor("#000");
+
+  doc.fontSize(13).font("Helvetica-Bold").text("ORDER CONFIRMATION", 40, 130);
+  doc.fontSize(9).font("Helvetica");
+  doc.text(`Order: ${order.orderNumber}`);
+  doc.text(`Placed on: ${(order.createdAt ?? new Date()).toLocaleDateString("en-IN")}`);
+  doc.moveDown(0.5);
+
+  doc.font("Helvetica-Bold").text(pickup ? "Pickup details:" : "Deliver to:");
+  doc.font("Helvetica");
+  doc.text(customer.name ?? customer.email);
+  if (pickup) {
+    doc.text(`${pickup.storeName ?? "LuxeLoom store"} — ${pickup.date ?? ""}${pickup.timeSlot ? `, ${pickup.timeSlot}` : ""}`);
+    doc.text("Bring a photo ID; your pickup QR code is on your order page.");
+  } else if (order.shippingAddress) {
+    const a = order.shippingAddress;
+    doc.text(`${a.line1}${a.line2 ? `, ${a.line2}` : ""}, ${a.city}, ${a.state} — ${a.pincode}`);
+  }
+  doc.moveDown(1);
+
+  const tableTop = doc.y;
+  const cols = [40, 330, 380, 460];
+  doc.font("Helvetica-Bold").fontSize(8);
+  ["Item", "Qty", "Rate Rs.", "Amount Rs."].forEach((h, i) =>
+    doc.text(h, cols[i], tableTop, { width: (cols[i + 1] ?? 555) - cols[i] - 8 })
+  );
+  doc.moveTo(40, tableTop + 12).lineTo(555, tableTop + 12).strokeColor("#999").stroke();
+
+  let y = tableTop + 18;
+  doc.font("Helvetica").fontSize(8);
+  for (const item of order.items) {
+    const variant = [item.size, item.color].filter(Boolean).join(" / ");
+    doc.text(`${item.name}${variant ? ` (${variant})` : ""}`, cols[0], y, { width: 280 });
+    doc.text(String(item.qty), cols[1], y);
+    doc.text(item.price.toFixed(2), cols[2], y);
+    doc.text((item.price * item.qty).toFixed(2), cols[3], y);
+    y += 16;
+  }
+  doc.moveTo(40, y).lineTo(555, y).strokeColor("#999").stroke();
+  y += 8;
+
+  const totals: [string, number][] = [
+    ["Subtotal (incl. GST)", order.pricing.subtotal],
+    ...(order.pricing.discount > 0 ? ([["Discount", -order.pricing.discount]] as [string, number][]) : []),
+    ...(order.pricing.shipping > 0 ? ([["Shipping", order.pricing.shipping]] as [string, number][]) : []),
+    ...((order.pricing.codFee ?? 0) > 0 ? ([["COD fee", order.pricing.codFee!]] as [string, number][]) : []),
+  ];
+  doc.fontSize(9);
+  for (const [label, value] of totals) {
+    doc.font("Helvetica").text(label, 360, y, { width: 120, align: "right" });
+    doc.text(value.toFixed(2), 490, y, { width: 65, align: "right" });
+    y += 14;
+  }
+  doc.font("Helvetica-Bold").fontSize(11);
+  doc.text("TOTAL", 360, y + 2, { width: 120, align: "right" });
+  doc.text(`Rs. ${order.pricing.total.toFixed(2)}`, 470, y + 2, { width: 85, align: "right" });
+  y += 28;
+
+  doc
+    .font("Helvetica")
+    .fontSize(7)
+    .fillColor("#666")
+    .text(
+      "This document confirms your order. Your GST tax invoice is attached to the delivery email and is always available from your order page.",
+      40,
+      y,
+      { width: 515 }
+    );
 
   doc.end();
   return doc;

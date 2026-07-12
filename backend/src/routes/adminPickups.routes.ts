@@ -44,7 +44,15 @@ router.post("/:id/ready", async (req, res) => {
     await sendEmail(
       user.email,
       `Your LuxeLoom order ${order.orderNumber} is ready for pickup`,
-      `Your order is packed and waiting. Show your QR code (${appt.qrCode}) at the counter.`
+      [
+        `Great news — your order is packed, quality-checked and waiting for you.`,
+        ``,
+        `Show this pickup code at the counter: ${appt.qrCode}`,
+        `(You'll also find it as a QR code on your order page.)`,
+        ``,
+        `We look forward to seeing you!`,
+      ].join("\n"),
+      { heading: "Your order is ready" }
     );
   }
 

@@ -10,6 +10,9 @@ import { StoreLocation, DEFAULT_PICKUP_CONFIG, type StoreLocationDoc } from "../
 import { buildCartView } from "./cart.service";
 import { sendEmail } from "../lib/mailer";
 import { User } from "../models/User";
+import { getSettings } from "../models/Settings";
+import { env } from "../config/env";
+import { renderOrderConfirmationA4, pdfToBuffer } from "./invoice.service";
 
 export interface AddressInput {
   name: string;
@@ -214,18 +217,50 @@ export async function placeOrder(input: PlaceOrderInput) {
 export async function sendOrderConfirmationEmail(orderId: string) {
   const order = await Order.findById(orderId).populate("storeLocation", "name").lean();
   if (!order) return;
-  const user = await User.findById(order.user).select("email").lean();
+  const user = await User.findById(order.user).select("email name").lean();
   if (!user) return;
   const appointment =
     order.deliveryMethod === "PICKUP" ? await PickupAppointment.findOne({ order: order._id }).lean() : null;
+  const settings = await getSettings();
+
+  const storeName = (order.storeLocation as unknown as { name?: string })?.name;
+  const nextStep = appointment
+    ? `Your pieces will be ready at ${storeName} on ${appointment.date.toISOString().slice(0, 10)} between ${appointment.timeSlot}. Bring a photo ID — your pickup QR code is on your order page.`
+    : "We're preparing your pieces now — you'll get tracking details the moment your order ships.";
+
+  // Attach the confirmation PDF; the email still goes out if rendering fails.
+  let attachments: { filename: string; content: Buffer }[] | undefined;
+  try {
+    const doc = await renderOrderConfirmationA4({
+      order,
+      customer: { name: user.name, email: user.email },
+      pickup: appointment
+        ? { storeName, date: appointment.date.toISOString().slice(0, 10), timeSlot: appointment.timeSlot }
+        : null,
+    });
+    attachments = [{ filename: `LuxeLoom-${order.orderNumber}-confirmation.pdf`, content: await pdfToBuffer(doc) }];
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("confirmation email: PDF failed:", err);
+  }
+
   await sendEmail(
     user.email,
-    `Your LuxeLoom order ${order.orderNumber} is confirmed`,
-    `Thanks for shopping with LuxeLoom. Order total: ₹${order.pricing.total}. ${
-      appointment
-        ? `Pickup at ${(order.storeLocation as unknown as { name?: string })?.name} on ${appointment.date.toISOString().slice(0, 10)}, ${appointment.timeSlot}.`
-        : "We'll email you when it ships."
-    }`
+    `Order ${order.orderNumber} confirmed — thank you for choosing LuxeLoom`,
+    [
+      `Thank you for choosing LuxeLoom — your order ${order.orderNumber} is confirmed and in caring hands.`,
+      ``,
+      `Total paid: ₹${order.pricing.total.toLocaleString("en-IN")}`,
+      ``,
+      nextStep,
+      ``,
+      `Every piece is quality-checked by hand before it leaves us. Changed your mind? No stress — easy returns within ${settings.returnWindowDays} days, right from your orders page.`,
+      ``,
+      `Track your order anytime: ${env.frontendUrl}/account/orders`,
+      ``,
+      `Your order confirmation is attached as a PDF for your records.`,
+    ].join("\n"),
+    { heading: "Your order is confirmed", attachments }
   );
 }
 

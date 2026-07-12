@@ -11,6 +11,12 @@ const router = Router();
 router.use(requireAdmin);
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Local calendar-day key. parseRange interprets from/to in server-local
+ * time, so buckets and order keys must too — keying with toISOString()
+ * (UTC) shifted every label a day back and dropped "today" entirely. */
+const dayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const REVENUE_STATUSES = { $nin: ["PENDING_PAYMENT", "CANCELLED"] as const };
 
 function parseRange(req: { query: Record<string, unknown> }): { from: Date; to: Date } {
@@ -95,10 +101,10 @@ router.get("/", async (req, res) => {
   // Daily revenue series (also used for sparklines).
   const daily = new Map<string, { revenue: number; orders: number }>();
   for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-    daily.set(d.toISOString().slice(0, 10), { revenue: 0, orders: 0 });
+    daily.set(dayKey(d), { revenue: 0, orders: 0 });
   }
   for (const o of rangeOrders) {
-    const key = o.createdAt.toISOString().slice(0, 10);
+    const key = dayKey(o.createdAt);
     const entry = daily.get(key);
     if (entry) {
       entry.revenue = round2(entry.revenue + o.pricing.total);
@@ -151,7 +157,7 @@ router.get("/", async (req, res) => {
     .slice(0, 12);
 
   res.json({
-    range: { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) },
+    range: { from: dayKey(from), to: dayKey(to) },
     kpis: {
       revenueToday,
       revenueWeek,

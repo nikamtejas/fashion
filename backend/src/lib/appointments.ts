@@ -53,8 +53,16 @@ export async function sweepAppointments(now = new Date()) {
       if (user && order && store) {
         await sendEmail(
           user.email,
-          `Reminder: your LuxeLoom pickup ${kind === "24H" ? "tomorrow" : "in 2 hours"}`,
-          `Order ${order.orderNumber} — pickup at ${store.name}, ${store.address} on ${appt.date.toISOString().slice(0, 10)} between ${appt.timeSlot}. Bring your QR code and a photo ID.`
+          `Your LuxeLoom pickup is ${kind === "24H" ? "tomorrow" : "in 2 hours"} — ${order.orderNumber}`,
+          [
+            `We've set your pieces aside and can't wait to see you.`,
+            ``,
+            `Where: ${store.name}, ${store.address}`,
+            `When: ${appt.date.toISOString().slice(0, 10)}, between ${appt.timeSlot}`,
+            ``,
+            `Just show the QR code from your order page and a photo ID at the counter. Running late? No worries — your order stays safely reserved for you.`,
+          ].join("\n"),
+          { heading: kind === "24H" ? "See you tomorrow" : "See you in a couple of hours" }
         );
       }
       appt.remindersSent.push(kind);

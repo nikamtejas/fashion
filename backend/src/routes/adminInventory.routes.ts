@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireAdmin } from "../middleware/auth";
 import { Product } from "../models/Product";
 import { checkAlertsForProduct } from "../services/alerts.service";
+import { notifyAdmins } from "../services/notify.service";
+import { env } from "../config/env";
 
 const router = Router();
 router.use(requireAdmin);
@@ -33,14 +35,36 @@ router.patch("/stock", async (req, res) => {
   const parsed = stockSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid stock update" });
 
-  const result = await Product.updateOne(
+  // Read the previous value first so the admin alert can show the delta.
+  const product = await Product.findOne({ _id: parsed.data.productId, "variants.sku": parsed.data.sku })
+    .select("name variants")
+    .lean();
+  if (!product) return res.status(404).json({ error: "Product/SKU not found" });
+  const variant = product.variants.find((v) => v.sku === parsed.data.sku);
+
+  await Product.updateOne(
     { _id: parsed.data.productId, "variants.sku": parsed.data.sku },
     { $set: { "variants.$[v].stock": parsed.data.stock } },
     { arrayFilters: [{ "v.sku": parsed.data.sku }] }
   );
-  if (result.matchedCount === 0) return res.status(404).json({ error: "Product/SKU not found" });
   checkAlertsForProduct(parsed.data.productId).catch((e) => console.error("alert check failed:", e));
   res.json({ ok: true });
+
+  // Admin audit email after responding — mail issues never fail the edit.
+  const oldStock = variant?.stock ?? 0;
+  if (oldStock !== parsed.data.stock) {
+    notifyAdmins(
+      `Stock updated: ${product.name} (${parsed.data.sku})`,
+      [
+        `${product.name} — ${[variant?.size, variant?.color].filter(Boolean).join(" / ")} (${parsed.data.sku})`,
+        `Stock: ${oldStock} → ${parsed.data.stock}`,
+        ...(parsed.data.stock < 5 ? ["", "Heads-up: this SKU is now low on stock (< 5 units)."] : []),
+        "",
+        `Inventory: ${env.frontendUrl}/admin/inventory`,
+      ].join("\n"),
+      { heading: "Inventory change" }
+    ).catch((e) => console.error("stock email failed:", e));
+  }
 });
 
 export default router;

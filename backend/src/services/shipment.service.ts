@@ -9,6 +9,7 @@ import { serviceMock } from "../lib/integrations";
 import { notifyUser } from "./notify.service";
 import { HttpError } from "./order.service";
 import { processRefund } from "./returns.service";
+import { sendDeliveredEmail } from "./orderEmails.service";
 
 // LuxeLoom's (fictional) origin warehouse.
 export const WAREHOUSE = { label: "Bhiwandi Hub", lat: 19.2813, lng: 73.0483, pincode: "421302" };
@@ -72,12 +73,17 @@ export async function transitionShipment(
       order.status = orderStatus as typeof order.status;
       await order.save();
     }
-    await notifyUser(
-      String(order.user),
-      `Order ${order.orderNumber}: ${STATUS_LABELS[status] ?? status}`,
-      opts.description ?? `${STATUS_LABELS[status]}${opts.location ? ` — ${opts.location}` : ""}`,
-      `/track/${order._id}`
-    );
+    if (status === "DELIVERED") {
+      // Delivered gets the rich email with the GST invoice attached.
+      await sendDeliveredEmail(String(order._id));
+    } else {
+      await notifyUser(
+        String(order.user),
+        `Order ${order.orderNumber}: ${STATUS_LABELS[status] ?? status}`,
+        opts.description ?? `${STATUS_LABELS[status]}${opts.location ? ` — ${opts.location}` : ""}`,
+        `/track/${order._id}`
+      );
+    }
   } else {
     // Reverse pickup drives the linked refund request's tracker.
     const refund = await RefundRequest.findOne({ reverseShipment: shipment._id });

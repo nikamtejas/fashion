@@ -9,6 +9,8 @@ import { requireAdmin } from "../middleware/auth";
 import { createShipmentForOrder } from "../services/shipment.service";
 import { HttpError } from "../services/order.service";
 import { buildShippingLabel } from "../lib/shippingLabel";
+import { notifyUser } from "../services/notify.service";
+import { sendDeliveredEmail } from "../services/orderEmails.service";
 
 const router = Router();
 router.use(requireAdmin);
@@ -42,15 +44,51 @@ const bulkSchema = z.object({
 
 /** Bulk manual status override — for statuses the shipment engine doesn't
  * own (it drives the courier lifecycle itself). */
+const BULK_STATUS_COPY: Record<string, { title: (n: string) => string; body: string }> = {
+  CONFIRMED: {
+    title: (n) => `Order ${n} confirmed`,
+    body: "We're preparing your pieces now — you'll get tracking details the moment your order ships.",
+  },
+  PACKED: {
+    title: (n) => `Order ${n} is packed`,
+    body: "Your pieces are packed, quality-checked and ready to ship.",
+  },
+  CANCELLED: {
+    title: (n) => `Order ${n} cancelled`,
+    body: "Your order has been cancelled. If any payment was captured, your refund will be processed promptly.",
+  },
+};
+
 router.post("/bulk-status", async (req, res) => {
   const parsed = bulkSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Pick orders and a status" });
 
+  // Snapshot first so only orders whose status actually changes get emailed.
+  const affected = await Order.find({ _id: { $in: parsed.data.ids }, status: { $ne: "PENDING_PAYMENT" } })
+    .select("orderNumber user status")
+    .lean();
   const result = await Order.updateMany(
     { _id: { $in: parsed.data.ids }, status: { $ne: "PENDING_PAYMENT" } },
     { status: parsed.data.status }
   );
   res.json({ updated: result.modifiedCount });
+
+  // Customer notifications after responding — a mail hiccup shouldn't fail
+  // the admin action.
+  for (const o of affected) {
+    if (o.status === parsed.data.status) continue;
+    try {
+      if (parsed.data.status === "DELIVERED") {
+        await sendDeliveredEmail(String(o._id));
+      } else {
+        const copy = BULK_STATUS_COPY[parsed.data.status];
+        if (copy) await notifyUser(String(o.user), copy.title(o.orderNumber), copy.body, `/account/orders/${o._id}`);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`bulk-status notification failed for ${o.orderNumber}:`, err);
+    }
+  }
 });
 
 const notesSchema = z.object({ notes: z.string().max(2000) });
