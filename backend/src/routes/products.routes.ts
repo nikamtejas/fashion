@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { Product } from "../models/Product";
+import { Category } from "../models/Category";
+import { Review } from "../models/Review";
+import { requireAuth } from "../middleware/auth";
 import { cloudinaryUrl } from "../lib/cloudinary";
+import { z } from "zod";
 
 const router = Router();
 
@@ -10,7 +14,9 @@ function serializeProduct(p: {
   slug: string;
   images: { publicId: string; type: string }[];
   pricing?: { finalPrice?: number | null; mrp?: number | null } | null;
+  variants?: { size: string; color: string; colorHex?: string | null; stock: number }[];
 }) {
+  const hoverImage = p.images?.find((img) => img.type === "AI_MODEL") ?? p.images?.[1];
   return {
     id: String(p._id),
     name: p.name,
@@ -18,14 +24,45 @@ function serializeProduct(p: {
     price: p.pricing?.finalPrice ?? 0,
     mrp: p.pricing?.mrp ?? undefined,
     image: p.images?.[0]?.publicId ? cloudinaryUrl(p.images[0].publicId, 600) : null,
+    hoverImage: hoverImage?.publicId ? cloudinaryUrl(hoverImage.publicId, 600) : null,
+    sizes: [...new Set((p.variants ?? []).map((v) => v.size))],
+    colors: [...new Map((p.variants ?? []).map((v) => [v.color, v.colorHex])).entries()].map(([name, hex]) => ({
+      name,
+      hex,
+    })),
+    inStock: (p.variants ?? []).some((v) => v.stock > 0),
   };
 }
 
 router.get("/", async (req, res) => {
-  const { sort = "new", limit = "20", category } = req.query as Record<string, string>;
+  const {
+    sort = "new",
+    limit = "20",
+    page = "1",
+    category,
+    size,
+    color,
+    minPrice,
+    maxPrice,
+    q,
+  } = req.query as Record<string, string>;
 
   const query: Record<string, unknown> = { status: "PUBLISHED" };
-  if (category) query.category = category;
+
+  if (category) {
+    const cat = await Category.findOne({ slug: category }).select("_id").lean();
+    if (!cat) return res.json({ products: [], total: 0, page: 1, pages: 0 });
+    query.category = cat._id;
+  }
+  if (size) query["variants.size"] = { $in: size.split(",") };
+  if (color) query["variants.color"] = { $in: color.split(",") };
+  if (minPrice || maxPrice) {
+    query["pricing.finalPrice"] = {
+      ...(minPrice ? { $gte: Number(minPrice) } : {}),
+      ...(maxPrice ? { $lte: Number(maxPrice) } : {}),
+    };
+  }
+  if (q) query.name = { $regex: q, $options: "i" };
 
   const sortMap: Record<string, Record<string, 1 | -1>> = {
     new: { createdAt: -1 },
@@ -33,17 +70,32 @@ router.get("/", async (req, res) => {
     price_desc: { "pricing.finalPrice": -1 },
   };
 
-  const products = await Product.find(query)
-    .sort(sortMap[sort] ?? sortMap.new)
-    .limit(Math.min(Number(limit) || 20, 50))
-    .select("name slug images pricing.finalPrice pricing.mrp")
-    .lean();
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(50, Number(limit) || 20);
 
-  res.json({ products: products.map(serializeProduct) });
+  const [products, total] = await Promise.all([
+    Product.find(query)
+      .sort(sortMap[sort] ?? sortMap.new)
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .select("name slug images pricing.finalPrice pricing.mrp variants")
+      .lean(),
+    Product.countDocuments(query),
+  ]);
+
+  res.json({
+    products: products.map(serializeProduct),
+    total,
+    page: pageNum,
+    pages: Math.ceil(total / limitNum),
+    hasMore: pageNum * limitNum < total,
+  });
 });
 
 router.get("/:slug", async (req, res) => {
-  const product = await Product.findOne({ slug: req.params.slug, status: "PUBLISHED" }).lean();
+  const product = await Product.findOne({ slug: req.params.slug, status: "PUBLISHED" })
+    .populate("category", "name slug")
+    .lean();
   if (!product) return res.status(404).json({ error: "Product not found" });
 
   res.json({
@@ -56,6 +108,84 @@ router.get("/:slug", async (req, res) => {
       })),
     },
   });
+});
+
+router.get("/:slug/complete-the-look", async (req, res) => {
+  const product = await Product.findOne({ slug: req.params.slug, status: "PUBLISHED" }).select("category gender").lean();
+  if (!product) return res.status(404).json({ error: "Product not found" });
+
+  const pairs = await Product.find({
+    status: "PUBLISHED",
+    slug: { $ne: req.params.slug },
+    category: { $ne: product.category },
+    gender: { $in: [product.gender, "UNISEX"] },
+  })
+    .sort({ createdAt: -1 })
+    .limit(4)
+    .select("name slug images pricing.finalPrice pricing.mrp variants")
+    .lean();
+
+  res.json({ products: pairs.map(serializeProduct) });
+});
+
+router.get("/:slug/reviews", async (req, res) => {
+  const product = await Product.findOne({ slug: req.params.slug }).select("_id").lean();
+  if (!product) return res.status(404).json({ error: "Product not found" });
+
+  const reviews = await Review.find({ product: product._id, status: "APPROVED" })
+    .populate("user", "name")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  res.json({
+    reviews: reviews.map((r) => ({
+      id: String(r._id),
+      rating: r.rating,
+      title: r.title,
+      body: r.body,
+      photos: r.photos,
+      verifiedPurchase: r.verifiedPurchase,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      userName: (r.user as any)?.name ?? "LuxeLoom customer",
+      createdAt: r.createdAt,
+    })),
+  });
+});
+
+const reviewSchema = z.object({
+  rating: z.number().min(1).max(5),
+  title: z.string().optional(),
+  body: z.string().min(1),
+  photos: z.array(z.object({ publicId: z.string(), secureUrl: z.string() })).optional(),
+});
+
+router.post("/:slug/reviews", requireAuth, async (req, res) => {
+  const parsed = reviewSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid review" });
+
+  const product = await Product.findOne({ slug: req.params.slug }).select("_id").lean();
+  if (!product) return res.status(404).json({ error: "Product not found" });
+
+  const review = await Review.create({
+    product: product._id,
+    user: req.user!.uid,
+    rating: parsed.data.rating,
+    title: parsed.data.title,
+    body: parsed.data.body,
+    photos: parsed.data.photos ?? [],
+    status: "APPROVED", // moderation queue arrives in M8
+  });
+
+  const stats = await Review.aggregate([
+    { $match: { product: product._id, status: "APPROVED" } },
+    { $group: { _id: null, avg: { $avg: "$rating" }, count: { $sum: 1 } } },
+  ]);
+  await Product.updateOne(
+    { _id: product._id },
+    { ratingAvg: stats[0]?.avg ?? parsed.data.rating, ratingCount: stats[0]?.count ?? 1 }
+  );
+
+  res.status(201).json({ review });
 });
 
 export default router;

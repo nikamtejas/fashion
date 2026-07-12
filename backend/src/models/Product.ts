@@ -16,6 +16,8 @@ const ProductImageSchema = new Schema(
     publicId: { type: String, required: true },
     secureUrl: { type: String, required: true },
     type: { type: String, enum: ["ORIGINAL", "STUDIO", "AI_MODEL"], required: true },
+    side: { type: String, enum: ["FRONT", "BACK"] }, // which garment side this photo shows (ORIGINAL/STUDIO pairs)
+    slot: { type: String, enum: ["MODEL_FRONT", "LIFESTYLE"] }, // which AI_MODEL photo this is (photo 3 vs photo 4)
     color: { type: String }, // ties image to a variant color; untagged = shown for all colors
     altText: { type: String },
     order: { type: Number, default: 0 },

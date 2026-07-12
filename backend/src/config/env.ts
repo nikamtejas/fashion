@@ -34,6 +34,8 @@ export const env = {
   integrationsMock: process.env.INTEGRATIONS_MOCK !== "false",
 
   geminiApiKey: process.env.GEMINI_API_KEY,
+  geminiImageModelPrimary: process.env.GEMINI_IMAGE_MODEL_PRIMARY ?? "gemini-3-pro-image-preview",
+  geminiImageModelFast: process.env.GEMINI_IMAGE_MODEL_FAST ?? "gemini-3.1-flash-image",
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,

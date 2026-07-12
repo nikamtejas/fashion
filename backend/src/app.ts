@@ -11,12 +11,16 @@ import productsRoutes from "./routes/products.routes";
 import searchRoutes from "./routes/search.routes";
 import newsletterRoutes from "./routes/newsletter.routes";
 import cloudinaryRoutes from "./routes/cloudinary.routes";
+import favoritesRoutes from "./routes/favorites.routes";
+import adminProductsRoutes from "./routes/adminProducts.routes";
+import adminPhotoStudioRoutes from "./routes/adminPhotoStudio.routes";
 
 export function createApp() {
   const app = express();
 
   app.use(cors({ origin: env.frontendUrl, credentials: true }));
-  app.use(express.json());
+  // Raised limit: admin image uploads arrive as base64 data URIs in JSON.
+  app.use(express.json({ limit: "20mb" }));
   app.use(cookieParser());
   app.use(attachUser);
 
@@ -28,6 +32,9 @@ export function createApp() {
   app.use("/api/search", searchRoutes);
   app.use("/api/newsletter", newsletterRoutes);
   app.use("/api/cloudinary", cloudinaryRoutes);
+  app.use("/api/favorites", favoritesRoutes);
+  app.use("/api/admin/products", adminProductsRoutes);
+  app.use("/api/admin/products", adminPhotoStudioRoutes);
 
   app.use(errorHandler);
 

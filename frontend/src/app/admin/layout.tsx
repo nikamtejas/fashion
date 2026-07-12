@@ -1,0 +1,41 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  React.useEffect(() => {
+    if (!loading && (!user || user.role !== "ADMIN")) {
+      router.replace("/login?callbackUrl=/admin");
+    }
+  }, [loading, user, router]);
+
+  if (loading || !user || user.role !== "ADMIN") {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-foreground/50">
+        Checking access…
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-8 flex items-center gap-6 border-b border-border pb-4">
+        <Link href="/admin/products" className="font-display text-xl">
+          LuxeLoom Admin
+        </Link>
+        <nav className="flex gap-4 text-sm text-foreground/60">
+          <Link href="/admin/products" className="hover:text-foreground">
+            Products
+          </Link>
+        </nav>
+      </div>
+      {children}
+    </div>
+  );
+}

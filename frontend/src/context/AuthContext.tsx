@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { apiFetch } from "@/lib/api";
+import { useFavoritesStore } from "@/store/favoritesStore";
 
 export interface AuthUser {
   id: string;
@@ -34,6 +35,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await apiFetch<{ user: AuthUser | null }>("/api/auth/me");
       setUser(data.user);
+      if (data.user) {
+        useFavoritesStore.getState().refresh();
+      } else {
+        useFavoritesStore.getState().clear();
+      }
     } catch {
       setUser(null);
     } finally {
@@ -52,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = React.useCallback(async () => {
     await apiFetch("/api/auth/logout", { method: "POST" });
     setUser(null);
+    useFavoritesStore.getState().clear();
   }, []);
 
   return <AuthContext.Provider value={{ user, loading, refresh, logout }}>{children}</AuthContext.Provider>;
