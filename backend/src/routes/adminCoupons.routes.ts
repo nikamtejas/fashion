@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { Coupon } from "../models/Coupon";
+import { Order } from "../models/Order";
 import { requireAdmin } from "../middleware/auth";
 
 const router = Router();
@@ -9,6 +10,37 @@ router.use(requireAdmin);
 router.get("/", async (_req, res) => {
   const coupons = await Coupon.find().sort({ createdAt: -1 }).lean();
   res.json({ coupons });
+});
+
+/** Per-coupon usage: orders, discount given, revenue attributed. */
+router.get("/analytics", async (_req, res) => {
+  const agg = await Order.aggregate([
+    { $match: { coupon: { $ne: null }, status: { $nin: ["PENDING_PAYMENT", "CANCELLED"] } } },
+    {
+      $group: {
+        _id: "$coupon",
+        orders: { $sum: 1 },
+        discountGiven: { $sum: "$pricing.discount" },
+        revenue: { $sum: "$pricing.total" },
+      },
+    },
+  ]);
+  const byId = new Map(agg.map((a) => [String(a._id), a]));
+  const coupons = await Coupon.find().select("code type value active").lean();
+
+  res.json({
+    analytics: coupons.map((c) => {
+      const stats = byId.get(String(c._id));
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      return {
+        code: c.code,
+        active: c.active,
+        orders: (stats?.orders as number) ?? 0,
+        discountGiven: round2((stats?.discountGiven as number) ?? 0),
+        revenue: round2((stats?.revenue as number) ?? 0),
+      };
+    }),
+  });
 });
 
 const couponSchema = z.object({

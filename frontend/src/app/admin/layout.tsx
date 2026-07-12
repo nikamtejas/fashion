@@ -26,18 +26,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8 flex items-center gap-6 border-b border-border pb-4">
-        <Link href="/admin/products" className="font-display text-xl">
+        <Link href="/admin" className="font-display text-xl">
           LuxeLoom Admin
         </Link>
-        <nav className="flex gap-4 text-sm text-foreground/60">
+        <nav className="flex flex-wrap gap-4 text-sm text-foreground/60">
+          <Link href="/admin" className="hover:text-foreground">
+            Dashboard
+          </Link>
+          <Link href="/admin/pos" className="hover:text-foreground">
+            POS
+          </Link>
           <Link href="/admin/products" className="hover:text-foreground">
             Products
+          </Link>
+          <Link href="/admin/inventory" className="hover:text-foreground">
+            Inventory
           </Link>
           <Link href="/admin/orders" className="hover:text-foreground">
             Orders
           </Link>
+          <Link href="/admin/invoices" className="hover:text-foreground">
+            Invoices
+          </Link>
           <Link href="/admin/returns" className="hover:text-foreground">
             Returns
+          </Link>
+          <Link href="/admin/customers" className="hover:text-foreground">
+            Customers
           </Link>
           <Link href="/admin/coupons" className="hover:text-foreground">
             Coupons

@@ -18,6 +18,7 @@ import {
 } from "../lib/integrations/razorpay";
 import { computeEmiPlans, createSnapmintOrder, EMI_TENURES, type EmiTenure } from "../lib/integrations/snapmint";
 import { INTEGRATIONS_MOCK } from "../lib/integrations";
+import { ensureInvoiceForOrder } from "../services/invoice.service";
 import crypto from "node:crypto";
 
 const router = Router();
@@ -183,6 +184,7 @@ router.post("/razorpay/verify", async (req, res) => {
     order.status = "PLACED";
     await order.save();
     await sendOrderConfirmationEmail(String(order._id));
+    await ensureInvoiceForOrder(String(order._id)).catch((e) => console.error("invoice generation failed:", e));
 
     res.json({ ok: true, order });
   } catch (err) {
@@ -266,6 +268,7 @@ router.post("/cod/place", async (req, res) => {
       codFee: settings.codConvenienceFee,
       initialStatus: "PLACED",
     });
+    if (order) await ensureInvoiceForOrder(String(order._id)).catch((e) => console.error("invoice generation failed:", e));
 
     res.status(201).json({ order });
   } catch (err) {
@@ -351,6 +354,7 @@ router.post("/snapmint/callback", async (req, res) => {
       order.status = "PLACED";
       await order.save();
       await sendOrderConfirmationEmail(String(order._id));
+      await ensureInvoiceForOrder(String(order._id)).catch((e) => console.error("invoice generation failed:", e));
     } else {
       payment.status = "FAILED";
       await payment.save();

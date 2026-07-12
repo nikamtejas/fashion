@@ -64,7 +64,7 @@ const OrderSchema = new Schema(
     items: { type: [OrderItemSchema], default: [] },
     pricing: { type: OrderPricingSchema, required: true },
     coupon: { type: Schema.Types.ObjectId, ref: "Coupon" },
-    deliveryMethod: { type: String, enum: ["HOME", "PICKUP"], required: true },
+    deliveryMethod: { type: String, enum: ["HOME", "PICKUP", "POS"], required: true },
     shippingAddress: { type: AddressSnapshotSchema },
     storeLocation: { type: Schema.Types.ObjectId, ref: "StoreLocation" },
     payment: { type: Schema.Types.ObjectId, ref: "Payment" },

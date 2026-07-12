@@ -2,6 +2,8 @@ import { Router } from "express";
 import { Order } from "../models/Order";
 import { PickupAppointment } from "../models/PickupAppointment";
 import { requireAuth } from "../middleware/auth";
+import { loadInvoiceRenderData, renderInvoiceA4, renderInvoiceThermal } from "../services/invoice.service";
+import { HttpError } from "../services/order.service";
 
 const router = Router();
 router.use(requireAuth);
@@ -27,6 +29,24 @@ router.get("/:id", async (req, res) => {
       : null;
 
   res.json({ order, appointment });
+});
+
+/** Customer GST invoice download — A4 by default, ?format=thermal for 80mm. */
+router.get("/:id/invoice.pdf", async (req, res) => {
+  const order = await Order.findOne({ _id: req.params.id, user: req.user!.uid }).select("_id").lean();
+  if (!order) return res.status(404).json({ error: "Order not found" });
+
+  try {
+    const data = await loadInvoiceRenderData(String(order._id));
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="invoice-${data.invoice.invoiceNumber}.pdf"`);
+    const doc =
+      req.query.format === "thermal" ? await renderInvoiceThermal(data) : await renderInvoiceA4(data);
+    doc.pipe(res);
+  } catch (err) {
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 export default router;

@@ -13,7 +13,7 @@ const SnapmintPlanSchema = new Schema(
 const PaymentSchema = new Schema(
   {
     order: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
-    method: { type: String, enum: ["RAZORPAY", "COD", "SNAPMINT"], required: true },
+    method: { type: String, enum: ["RAZORPAY", "COD", "SNAPMINT", "CASH", "CARD", "UPI"], required: true },
     status: { type: String, enum: ["PENDING", "PAID", "FAILED", "REFUNDED"], default: "PENDING", index: true },
     amount: { type: Number, required: true },
     razorpayOrderId: { type: String },

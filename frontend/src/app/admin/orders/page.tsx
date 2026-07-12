@@ -22,32 +22,88 @@ const STATUSES = ["", "PENDING_PAYMENT", "PLACED", "CONFIRMED", "PACKED", "PICKU
 export default function AdminOrdersPage() {
   const [orders, setOrders] = React.useState<AdminOrder[] | null>(null);
   const [status, setStatus] = React.useState("");
+  const [q, setQ] = React.useState("");
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = React.useState("CONFIRMED");
+  const [busy, setBusy] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    setOrders(null);
+    setSelected(new Set());
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (q.trim()) params.set("q", q.trim());
+    apiFetch<{ orders: AdminOrder[] }>(`/api/admin/orders?${params}`).then((data) => setOrders(data.orders));
+  }, [status, q]);
 
   React.useEffect(() => {
-    // Refetch on filter change; setState in the async callback.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrders(null);
-    apiFetch<{ orders: AdminOrder[] }>(`/api/admin/orders${status ? `?status=${status}` : ""}`).then((data) =>
-      setOrders(data.orders)
-    );
-  }, [status]);
+    const handle = setTimeout(() => {
+      // Debounced refetch on filter/search change; setState in callback.
+       
+      load();
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [load]);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function applyBulk() {
+    setBusy(true);
+    try {
+      await apiFetch("/api/admin/orders/bulk-status", { method: "POST", json: { ids: [...selected], status: bulkStatus } });
+      load();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl">Orders</h1>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="h-10 rounded-lg border border-border bg-surface px-3 text-sm"
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s === "" ? "All statuses" : s.replaceAll("_", " ")}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search order # or email…"
+            className="h-10 w-56 rounded-lg border border-border bg-surface px-3 text-sm"
+          />
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="h-10 rounded-lg border border-border bg-surface px-3 text-sm"
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s === "" ? "All statuses" : s.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {selected.size > 0 && (
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-accent/40 bg-accent/5 px-4 py-2 text-sm">
+          <span>{selected.size} selected</span>
+          <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="h-8 rounded-lg border border-border bg-surface px-2 text-xs">
+            {["CONFIRMED", "PACKED", "DELIVERED", "CANCELLED"].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <button onClick={applyBulk} disabled={busy} className="rounded-lg bg-ink px-3 py-1.5 text-xs text-ivory dark:bg-ivory dark:text-ink">
+            {busy ? "Applying…" : "Apply"}
+          </button>
+        </div>
+      )}
 
       {orders === null && (
         <div className="mt-8 space-y-3">
@@ -61,6 +117,7 @@ export default function AdminOrdersPage() {
         <table className="w-full text-sm">
           <thead className="bg-surface text-left text-xs uppercase tracking-wider text-foreground/50">
             <tr>
+              <th className="w-8 px-3 py-3" />
               <th className="px-4 py-3">Order</th>
               <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Method</th>
@@ -71,6 +128,9 @@ export default function AdminOrdersPage() {
           <tbody>
             {orders?.map((o) => (
               <tr key={o._id} className="border-t border-border hover:bg-foreground/5">
+                <td className="px-3 py-3">
+                  <input type="checkbox" checked={selected.has(o._id)} onChange={() => toggle(o._id)} aria-label={`Select ${o.orderNumber}`} />
+                </td>
                 <td className="px-4 py-3">
                   <Link href={`/admin/orders/${o._id}`} className="font-medium hover:underline">
                     {o.orderNumber}

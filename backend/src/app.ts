@@ -30,6 +30,11 @@ import adminOrdersRoutes from "./routes/adminOrders.routes";
 import returnsRoutes from "./routes/returns.routes";
 import adminReturnsRoutes from "./routes/adminReturns.routes";
 import notificationsRoutes from "./routes/notifications.routes";
+import adminInvoicesRoutes from "./routes/adminInvoices.routes";
+import adminPosRoutes from "./routes/adminPos.routes";
+import adminDashboardRoutes from "./routes/adminDashboard.routes";
+import adminCustomersRoutes from "./routes/adminCustomers.routes";
+import adminInventoryRoutes from "./routes/adminInventory.routes";
 
 export function createApp() {
   const app = express();
@@ -69,6 +74,11 @@ export function createApp() {
   app.use("/api/returns", returnsRoutes);
   app.use("/api/admin/returns", adminReturnsRoutes);
   app.use("/api/notifications", notificationsRoutes);
+  app.use("/api/admin/invoices", adminInvoicesRoutes);
+  app.use("/api/admin/pos", adminPosRoutes);
+  app.use("/api/admin/dashboard", adminDashboardRoutes);
+  app.use("/api/admin/customers", adminCustomersRoutes);
+  app.use("/api/admin/inventory", adminInventoryRoutes);
 
   app.use(errorHandler);
 

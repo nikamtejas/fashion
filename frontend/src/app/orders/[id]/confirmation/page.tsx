@@ -8,7 +8,6 @@ import { Check, FileText, PackageSearch } from "lucide-react";
 import { apiFetch, API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
-import { useToast } from "@/components/ui/Toast";
 
 interface OrderDetail {
   _id: string;
@@ -33,7 +32,6 @@ export default function ConfirmationPage() {
   const { id } = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
   const [order, setOrder] = React.useState<OrderDetail | null>(null);
   const [appointment, setAppointment] = React.useState<Appointment | null>(null);
 
@@ -116,12 +114,10 @@ export default function ConfirmationPage() {
             <PackageSearch className="h-4 w-4" /> Track order
           </Link>
         </Button>
-        <Button
-          variant="outline"
-          magnetic={false}
-          onClick={() => toast({ title: "Invoices arrive with Milestone 7", description: "GST-compliant PDF invoices are on the roadmap." })}
-        >
-          <FileText className="h-4 w-4" /> Download invoice
+        <Button variant="outline" magnetic={false} asChild>
+          <a href={`${API_URL}/api/orders/${order._id}/invoice.pdf`} target="_blank" rel="noreferrer">
+            <FileText className="h-4 w-4" /> Download invoice
+          </a>
         </Button>
       </motion.div>
 

@@ -122,6 +122,13 @@ export default function OrderDetailPage() {
           <Button size="sm" variant="outline" magnetic={false} onClick={() => router.push(`/track/${order._id}`)}>
             Track order
           </Button>
+          {order.status !== "PENDING_PAYMENT" && order.status !== "CANCELLED" && (
+            <Button size="sm" variant="ghost" magnetic={false} asChild>
+              <a href={`${API_URL}/api/orders/${order._id}/invoice.pdf`} target="_blank" rel="noreferrer">
+                Invoice
+              </a>
+            </Button>
+          )}
           {order.status === "DELIVERED" && (
             <Button size="sm" magnetic={false} onClick={() => setReturnOpen(true)}>
               Return / refund
