@@ -23,12 +23,24 @@ export interface WizardPricing {
   purchasePrice: number;
   marginType: "PERCENTAGE" | "FLAT";
   marginValue: number;
+  marginAmount: number;
   fixedCosts: { name: string; value: number }[];
-  gstRate: number;
-  gstAmount: number;
+  fixedCostsTotal: number;
+  customParams: { name: string; value: number }[];
+  customParamsTotal: number;
   baseCost: number;
+  suggestedGstRate: number;
+  gstRate: number;
+  gstInclusive: boolean;
+  gstAmount: number;
+  taxType: "CGST_SGST" | "IGST";
+  cgst: number;
+  sgst: number;
+  igst: number;
+  preTaxPrice: number;
   finalPrice: number;
   mrp?: number;
+  discountPct?: number;
   marginPct: number;
   profitPerUnit: number;
 }

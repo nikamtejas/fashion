@@ -3,6 +3,7 @@ import { v2 as cloudinary } from "cloudinary";
 import { Category } from "../src/models/Category";
 import { Product } from "../src/models/Product";
 import { StoreLocation } from "../src/models/StoreLocation";
+import { computePricing } from "../src/lib/pricing";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -18,9 +19,9 @@ function slugify(name: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-// Indian apparel GST rule: <=1000 -> 5%, above -> 12% (footwear/accessories can
-// select 5/12/18 in the real M3 wizard; seeding uses the same default rule).
-function computePricing({
+// Pricing comes from the real M3 engine so seeded products carry the same
+// full breakdown shape the admin wizard produces.
+function seedPricing({
   purchasePrice,
   marginPct,
   fixedCost,
@@ -31,30 +32,13 @@ function computePricing({
   fixedCost: number;
   mrp?: number;
 }) {
-  const marginValue = Math.round(purchasePrice * (marginPct / 100));
-  const baseCost = purchasePrice + marginValue + fixedCost;
-  const gstRate = baseCost <= 1000 ? 5 : 12;
-  const gstAmount = Math.round(baseCost * (gstRate / 100));
-  const finalPrice = baseCost + gstAmount;
-  const profitPerUnit = finalPrice - gstAmount - purchasePrice - fixedCost;
-  const effectiveMarginPct = Math.round((profitPerUnit / finalPrice) * 100);
-
-  return {
+  return computePricing({
     purchasePrice,
-    marginType: "PERCENTAGE" as const,
+    marginType: "PERCENTAGE",
     marginValue: marginPct,
     fixedCosts: [{ name: "Packaging & Logistics", value: fixedCost }],
-    customParams: [],
-    baseCost,
-    gstInclusive: false,
-    gstRate,
-    gstAmount,
-    taxType: "CGST_SGST" as const,
     mrp,
-    finalPrice,
-    marginPct: effectiveMarginPct,
-    profitPerUnit,
-  };
+  });
 }
 
 interface SeedProduct {
@@ -479,7 +463,7 @@ async function seed() {
       }))
     );
 
-    const pricing = computePricing({
+    const pricing = seedPricing({
       purchasePrice: p.purchasePrice,
       marginPct: p.marginPct,
       fixedCost: p.fixedCost,

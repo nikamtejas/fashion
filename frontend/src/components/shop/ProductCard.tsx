@@ -77,10 +77,17 @@ export function ProductCard({ product, priority }: { product: ShopProduct; prior
             </AnimatePresence>
           </button>
 
-          {!product.inStock && (
+          {!product.inStock ? (
             <span className="absolute left-3 top-3 rounded-full bg-ink/80 px-2.5 py-1 text-[10px] uppercase tracking-wider text-ivory">
               Out of stock
             </span>
+          ) : (
+            product.mrp !== undefined &&
+            product.mrp > product.price && (
+              <span className="absolute left-3 top-3 rounded-full bg-sienna px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
+                {Math.round((1 - product.price / product.mrp) * 100)}% off
+              </span>
+            )
           )}
 
           <button

@@ -26,27 +26,36 @@ const ProductImageSchema = new Schema(
   { _id: true }
 );
 
-// Full pricing breakdown (Milestone 3 computes/owns this; the shape is
-// defined now so the schema doesn't need a breaking migration later).
+// Full pricing breakdown — always written by computePricing() in
+// lib/pricing.ts (M3), never assembled by hand or trusted from a client.
 const PricingSchema = new Schema(
   {
     purchasePrice: { type: Number, default: 0 },
     marginType: { type: String, enum: ["PERCENTAGE", "FLAT"], default: "PERCENTAGE" },
     marginValue: { type: Number, default: 0 },
+    marginAmount: { type: Number, default: 0 }, // margin in rupees
     fixedCosts: {
       type: [{ name: String, value: Number }],
       default: [],
     },
+    fixedCostsTotal: { type: Number, default: 0 },
     customParams: {
       type: [{ name: String, value: Number }],
       default: [],
     },
+    customParamsTotal: { type: Number, default: 0 },
     baseCost: { type: Number, default: 0 }, // purchasePrice + margin + fixedCosts + customParams
+    suggestedGstRate: { type: Number, default: 5 }, // slab the ₹1,000 rule suggested
     gstInclusive: { type: Boolean, default: false },
-    gstRate: { type: Number, default: 5 },
+    gstRate: { type: Number, default: 5 }, // slab actually applied (override or suggested)
     gstAmount: { type: Number, default: 0 },
     taxType: { type: String, enum: ["CGST_SGST", "IGST"], default: "CGST_SGST" },
+    cgst: { type: Number, default: 0 },
+    sgst: { type: Number, default: 0 },
+    igst: { type: Number, default: 0 },
+    preTaxPrice: { type: Number, default: 0 },
     mrp: { type: Number }, // optional compare-at price for strike-through
+    discountPct: { type: Number }, // whole-percent badge when mrp > finalPrice
     finalPrice: { type: Number, default: 0 },
     marginPct: { type: Number, default: 0 }, // effective margin %, derived
     profitPerUnit: { type: Number, default: 0 },

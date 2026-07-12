@@ -1,13 +1,9 @@
 /**
- * LuxeLoom pricing + GST engine (Milestone 3).
- *
- * Pure functions only — no I/O, no Mongoose. The server is the sole
- * authority: routes call computePricing() on raw inputs and persist the
- * returned breakdown; client-sent computed values are never trusted.
- *
- * Money is handled in rupees with paise precision (2 decimals). Every
- * intermediate is rounded to the paise so the itemized breakdown always
- * sums exactly to the displayed totals.
+ * Client-side mirror of the backend pricing engine, used only for the live
+ * preview panel in the admin wizard. The backend's computePricing()
+ * (backend/src/lib/pricing.ts) is the single authority — it recomputes the
+ * breakdown on save and this file must stay logic-identical to it. The
+ * backend's unit tests are the contract for both.
  */
 
 export type MarginType = "PERCENTAGE" | "FLAT";
@@ -24,12 +20,9 @@ export interface PricingInput {
   marginValue: number;
   fixedCosts?: CostLine[];
   customParams?: CostLine[];
-  /** Explicit slab override (5/12/18). Omit to use the suggested slab. */
   gstRate?: number;
-  /** When true, the Base Price is treated as already GST-inclusive. */
   gstInclusive?: boolean;
   taxType?: TaxType;
-  /** Optional compare-at price for the storefront strike-through badge. */
   mrp?: number;
 }
 
@@ -37,17 +30,13 @@ export interface PricingBreakdown {
   purchasePrice: number;
   marginType: MarginType;
   marginValue: number;
-  /** Margin in rupees (equals marginValue when FLAT). */
   marginAmount: number;
   fixedCosts: CostLine[];
   fixedCostsTotal: number;
   customParams: CostLine[];
   customParamsTotal: number;
-  /** Base Price = purchase + margin + fixed costs + custom params. */
   baseCost: number;
-  /** Slab the Indian apparel rule suggests for this Base Price. */
   suggestedGstRate: number;
-  /** Slab actually applied (override or suggested). */
   gstRate: number;
   gstInclusive: boolean;
   gstAmount: number;
@@ -55,14 +44,10 @@ export interface PricingBreakdown {
   cgst: number;
   sgst: number;
   igst: number;
-  /** What the business keeps before tax: base (exclusive) or base − GST (inclusive). */
   preTaxPrice: number;
-  /** What the customer pays: base + GST (exclusive) or base (inclusive). */
   finalPrice: number;
   mrp?: number;
-  /** Whole-percent strike-through discount when mrp > finalPrice. */
   discountPct?: number;
-  /** Effective margin as % of the final selling price. */
   marginPct: number;
   profitPerUnit: number;
 }
@@ -104,7 +89,6 @@ export function computePricing(input: PricingInput): PricingBreakdown {
   let finalPrice: number;
 
   if (gstInclusive) {
-    // Base Price already contains GST: extract it.
     finalPrice = baseCost;
     gstAmount = round2((baseCost * gstRate) / (100 + gstRate));
     preTaxPrice = round2(baseCost - gstAmount);
@@ -114,8 +98,6 @@ export function computePricing(input: PricingInput): PricingBreakdown {
     finalPrice = round2(baseCost + gstAmount);
   }
 
-  // CGST/SGST is an even split of the GST amount; IGST is the whole of it.
-  // Halves are rounded so cgst + sgst always equals gstAmount exactly.
   const cgst = taxType === "CGST_SGST" ? round2(gstAmount / 2) : 0;
   const sgst = taxType === "CGST_SGST" ? round2(gstAmount - cgst) : 0;
   const igst = taxType === "IGST" ? gstAmount : 0;
@@ -153,21 +135,6 @@ export function computePricing(input: PricingInput): PricingBreakdown {
   };
 }
 
-/**
- * Psychological-pricing helper: back-solve the margin so the final selling
- * price lands exactly on `targetFinalPrice` (e.g. ₹999, ₹1,499).
- *
- * When no explicit gstRate override is given, the suggested slab depends on
- * the Base Price — which itself depends on the margin being solved for. Both
- * slabs are tried and the one whose resulting Base Price is consistent with
- * its own suggestion wins (a fixed point). Exactly one slab can be
- * self-consistent for a given target, except in the small band where the
- * target is reachable from either side; the cheaper-GST (5%) solution is
- * preferred there since it yields the higher margin.
- *
- * Returns the solved margin (in the requested marginType's units) or null
- * when the target is unreachable (margin would be negative).
- */
 export function solveMarginForTarget(
   targetFinalPrice: number,
   input: Omit<PricingInput, "marginValue">
@@ -176,13 +143,10 @@ export function solveMarginForTarget(
   const otherCosts = sumLines(input.fixedCosts) + sumLines(input.customParams);
 
   const solveForRate = (rate: number): number | null => {
-    // exclusive: base = target / (1 + r/100); inclusive: base = target
     const base = input.gstInclusive ? targetFinalPrice : (targetFinalPrice * 100) / (100 + rate);
     const marginAmount = round2(base - purchasePrice - otherCosts);
     if (marginAmount < 0) return null;
     if (input.gstRate === undefined) {
-      // Suggested-slab mode: the solution must be consistent with the slab
-      // this Base Price would itself suggest.
       const consistent = suggestGstRate(round2(base)) === rate;
       if (!consistent) return null;
     }

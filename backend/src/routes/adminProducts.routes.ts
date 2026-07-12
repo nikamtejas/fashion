@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Product } from "../models/Product";
 import { requireAdmin } from "../middleware/auth";
 import { slugify } from "../lib/slugify";
-import { computeSimplePricing } from "../lib/pricing";
+import { computePricing } from "../lib/pricing";
 import { uploadImage, productFolder } from "../lib/cloudinary";
 
 const router = Router();
@@ -80,7 +80,11 @@ const updateSchema = z.object({
       purchasePrice: z.number().min(0),
       marginType: z.enum(["PERCENTAGE", "FLAT"]),
       marginValue: z.number().min(0),
-      fixedCost: z.number().min(0).default(0),
+      fixedCosts: z.array(z.object({ name: z.string(), value: z.number().min(0) })).default([]),
+      customParams: z.array(z.object({ name: z.string(), value: z.number().min(0) })).default([]),
+      gstRate: z.union([z.literal(5), z.literal(12), z.literal(18)]).optional(),
+      gstInclusive: z.boolean().default(false),
+      taxType: z.enum(["CGST_SGST", "IGST"]).default("CGST_SGST"),
       mrp: z.number().min(0).optional(),
     })
     .optional(),
@@ -97,7 +101,9 @@ router.patch("/:id", async (req, res) => {
   Object.assign(product, rest);
 
   if (pricing) {
-    product.pricing = computeSimplePricing(pricing) as unknown as typeof product.pricing;
+    // Server always recomputes the breakdown from raw inputs — any derived
+    // values a client might send are ignored by the schema above.
+    product.pricing = computePricing(pricing) as unknown as typeof product.pricing;
   }
 
   await product.save();
