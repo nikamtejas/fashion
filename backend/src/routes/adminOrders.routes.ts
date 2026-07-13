@@ -132,6 +132,27 @@ router.post("/:id/ready-to-ship", async (req, res) => {
   }
 });
 
+/** Delivery agent collected cash at the door — the HOME-delivery analog of
+ * the in-store pickup handover's COD collection (adminPickups.routes.ts). */
+router.post("/:id/cod/mark-cash-collected", async (req, res) => {
+  const order = await Order.findById(req.params.id).select("deliveryMethod status").lean();
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  if (order.deliveryMethod !== "HOME") {
+    return res.status(400).json({ error: "Pickup COD is collected at handover, not here" });
+  }
+  if (!["OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status)) {
+    return res.status(400).json({ error: "Order hasn't reached delivery yet" });
+  }
+  const result = await Payment.updateOne(
+    { order: order._id, method: "COD", status: "PENDING" },
+    { $set: { status: "PAID", codRemittanceStatus: "PENDING", codCollectedAt: new Date() } }
+  );
+  if (result.modifiedCount === 0) {
+    return res.status(400).json({ error: "No pending COD payment to collect on this order" });
+  }
+  res.json({ ok: true });
+});
+
 router.get("/:id/label.pdf", async (req, res) => {
   const order = await Order.findById(req.params.id).lean();
   if (!order) return res.status(404).json({ error: "Order not found" });

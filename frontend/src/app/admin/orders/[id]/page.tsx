@@ -55,10 +55,28 @@ export default function AdminOrderDetailPage() {
     }
   }
 
+  async function collectCash() {
+    setBusy(true);
+    try {
+      await apiFetch(`/api/admin/orders/${id}/cod/mark-cash-collected`, { method: "POST" });
+      toast({ title: "Cash collected — payment marked paid", variant: "success" });
+      load();
+    } catch (err) {
+      toast({ title: "Couldn't record payment", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!data) return <p className="text-sm text-foreground/50">Loading…</p>;
   const { order, payment, shipment, events, appointment } = data;
 
   const canShip = order.deliveryMethod === "HOME" && ["PLACED", "CONFIRMED"].includes(order.status) && !shipment;
+  const canCollectCash =
+    order.deliveryMethod === "HOME" &&
+    payment?.method === "COD" &&
+    payment?.status !== "PAID" &&
+    ["OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status);
 
   return (
     <div className="max-w-3xl">
@@ -98,6 +116,11 @@ export default function AdminOrderDetailPage() {
             </p>
           )}
           <p className="mt-2 text-sm tabular-nums">Total ₹{order.pricing.total.toLocaleString("en-IN")}</p>
+          {canCollectCash && (
+            <Button size="sm" className="mt-3 w-full" magnetic={false} disabled={busy} onClick={collectCash}>
+              {busy ? "Recording…" : "Cash collected — mark as paid"}
+            </Button>
+          )}
         </div>
         <div className="rounded-2xl border border-border p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-foreground/50">

@@ -48,6 +48,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/invoices" className="hover:text-foreground">
             Invoices
           </Link>
+          <Link href="/admin/cod-remittance" className="hover:text-foreground">
+            COD remittance
+          </Link>
           <Link href="/admin/returns" className="hover:text-foreground">
             Returns
           </Link>

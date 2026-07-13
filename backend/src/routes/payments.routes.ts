@@ -290,6 +290,66 @@ router.post("/cod/place", async (req, res) => {
   }
 });
 
+/**
+ * Once a COD order is out for delivery, the customer can pay online instead
+ * of handing over cash. Deliberately separate from /razorpay/initiate +
+ * /razorpay/verify — those assume a brand-new order and re-send the
+ * confirmation email, award loyalty points, etc. Here the order is already
+ * real; only the payment record needs to flip to PAID.
+ */
+router.post("/cod/online-init/:orderId", async (req, res) => {
+  try {
+    const order = await loadOwnOrder(req.params.orderId, req.user!.uid);
+    if (!["OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status)) {
+      return res.status(400).json({ error: "Online payment opens up once your order is out for delivery" });
+    }
+    const payment = await Payment.findOne({ order: order._id });
+    if (!payment || payment.method !== "COD" || payment.status === "PAID") {
+      return res.status(400).json({ error: "Nothing to pay online for this order" });
+    }
+
+    const rzpOrder = await createRazorpayOrder(payment.amount, order.orderNumber);
+    payment.razorpayOrderId = rzpOrder.id;
+    await payment.save();
+
+    res.json({
+      razorpay: { orderId: rzpOrder.id, keyId: rzpOrder.keyId, amount: rzpOrder.amount, currency: rzpOrder.currency },
+      mock: RAZORPAY_MOCK,
+    });
+  } catch (err) {
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const codOnlineVerifySchema = z.object({ razorpayPaymentId: z.string(), razorpaySignature: z.string() });
+
+router.post("/cod/online-verify/:orderId", async (req, res) => {
+  const parsed = codOnlineVerifySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid verification payload" });
+
+  try {
+    const order = await loadOwnOrder(req.params.orderId, req.user!.uid);
+    const payment = await Payment.findOne({ order: order._id });
+    if (!payment?.razorpayOrderId) return res.status(400).json({ error: "No online payment pending on this order" });
+    if (payment.status === "PAID") return res.json({ ok: true });
+
+    const valid = verifyPaymentSignature(payment.razorpayOrderId, parsed.data.razorpayPaymentId, parsed.data.razorpaySignature);
+    if (!valid) return res.status(400).json({ error: "Payment signature verification failed" });
+
+    payment.status = "PAID";
+    payment.method = "RAZORPAY";
+    payment.razorpayPaymentId = parsed.data.razorpayPaymentId;
+    payment.razorpaySignature = parsed.data.razorpaySignature;
+    await payment.save();
+
+    res.json({ ok: true });
+  } catch (err) {
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
 // ─── Snapmint EMI ───────────────────────────────────────────────────────────
 
 const snapmintInitiateSchema = checkoutSchema.safeExtend({

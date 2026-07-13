@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
-import { CalendarPlus, CalendarX2, CalendarClock } from "lucide-react";
+import { CalendarPlus, CalendarX2, CalendarClock, Smartphone } from "lucide-react";
 import { apiFetch, API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/Badge";
@@ -37,6 +37,23 @@ interface Appointment {
   qrCode: string;
 }
 
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -49,7 +66,9 @@ export default function OrderDetailPage() {
   const [busy, setBusy] = React.useState(false);
   const [returns, setReturns] = React.useState<ReturnView[]>([]);
   const [returnOpen, setReturnOpen] = React.useState(false);
-  const [paymentMethod, setPaymentMethod] = React.useState<string | undefined>();
+  const [payment, setPayment] = React.useState<{ method: string; status: string } | undefined>();
+  const [payOnlineBusy, setPayOnlineBusy] = React.useState(false);
+  const [mockModal, setMockModal] = React.useState(false);
 
   React.useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -65,8 +84,8 @@ export default function OrderDetailPage() {
     apiFetch<{ returns: ReturnView[] }>(`/api/returns?orderId=${id}`)
       .then((data) => setReturns(data.returns))
       .catch(() => {});
-    apiFetch<{ payment: { method: string } | null }>(`/api/payments/order/${id}`)
-      .then((data) => setPaymentMethod(data.payment?.method))
+    apiFetch<{ payment: { method: string; status: string } | null }>(`/api/payments/order/${id}`)
+      .then((data) => setPayment(data.payment ?? undefined))
       .catch(() => {});
   }, [id, router]);
 
@@ -104,9 +123,75 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function verifyOnlinePayment(razorpayPaymentId: string, razorpaySignature: string) {
+    await apiFetch(`/api/payments/cod/online-verify/${id}`, {
+      method: "POST",
+      json: { razorpayPaymentId, razorpaySignature },
+    });
+    toast({ title: "Paid online — thanks!", description: "No cash needed at the door.", variant: "success" });
+    setMockModal(false);
+    load();
+  }
+
+  async function payOnline() {
+    setPayOnlineBusy(true);
+    try {
+      const init = await apiFetch<{
+        razorpay: { orderId: string; keyId: string; amount: number; currency: string };
+        mock: boolean;
+      }>(`/api/payments/cod/online-init/${id}`, { method: "POST" });
+
+      if (init.mock) {
+        setMockModal(true);
+        return;
+      }
+
+      const ok = await loadRazorpayScript();
+      if (!ok || !window.Razorpay) throw new Error("Couldn't load Razorpay checkout");
+      const rzp = new window.Razorpay({
+        key: init.razorpay.keyId,
+        amount: init.razorpay.amount,
+        currency: init.razorpay.currency,
+        order_id: init.razorpay.orderId,
+        name: "LuxeLoom",
+        handler: async (response: { razorpay_payment_id: string; razorpay_signature: string }) => {
+          try {
+            await verifyOnlinePayment(response.razorpay_payment_id, response.razorpay_signature);
+          } catch (err) {
+            toast({ title: "Verification failed", description: err instanceof Error ? err.message : undefined, variant: "error" });
+          }
+        },
+      });
+      rzp.open();
+    } catch (err) {
+      toast({ title: "Couldn't start payment", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setPayOnlineBusy(false);
+    }
+  }
+
+  async function mockPay() {
+    setPayOnlineBusy(true);
+    try {
+      const sig = await apiFetch<{ razorpayPaymentId: string; razorpaySignature: string }>(
+        `/api/payments/razorpay/mock-pay/${id}`,
+        { method: "POST" }
+      );
+      await verifyOnlinePayment(sig.razorpayPaymentId, sig.razorpaySignature);
+    } catch (err) {
+      toast({ title: "Payment error", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setPayOnlineBusy(false);
+    }
+  }
+
   if (!order) return <div className="py-20 text-center text-sm text-foreground/50">Loading…</div>;
 
   const appointmentActive = appointment && ["BOOKED", "READY"].includes(appointment.status);
+  const canPayOnline =
+    payment?.method === "COD" &&
+    payment?.status !== "PAID" &&
+    ["OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -193,6 +278,19 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {canPayOnline && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-accent/5 p-4">
+          <p className="flex items-center gap-2 text-sm">
+            <Smartphone className="h-4 w-4 shrink-0 text-accent" />
+            Your order is {order.status === "DELIVERED" ? "delivered" : "out for delivery"} — pay online via
+            UPI/card instead of handing over cash.
+          </p>
+          <Button size="sm" magnetic={false} disabled={payOnlineBusy} onClick={payOnline}>
+            {payOnlineBusy ? "Starting…" : "Pay online"}
+          </Button>
+        </div>
+      )}
+
       {order.deliveryMethod === "HOME" && order.shippingAddress && (
         <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
           <p className="text-xs font-medium uppercase tracking-wider text-foreground/50">Delivering to</p>
@@ -254,7 +352,7 @@ export default function OrderDetailPage() {
         orderId={order._id}
         items={order.items}
         defaultPincode={order.shippingAddress?.pincode ?? order.storeLocation?.pincode}
-        paymentMethod={paymentMethod}
+        paymentMethod={payment?.method}
         onCreated={load}
       />
 
@@ -266,6 +364,17 @@ export default function OrderDetailPage() {
           </Button>
         </Modal>
       )}
+
+      <Modal
+        open={mockModal}
+        onOpenChange={setMockModal}
+        title="Razorpay Checkout (simulated)"
+        description="INTEGRATIONS_MOCK is on — this stands in for Razorpay's hosted payment window."
+      >
+        <Button className="w-full" disabled={payOnlineBusy} onClick={mockPay}>
+          {payOnlineBusy ? "Paying…" : "Simulate successful payment"}
+        </Button>
+      </Modal>
     </div>
   );
 }

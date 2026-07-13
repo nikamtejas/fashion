@@ -44,6 +44,7 @@ import adminReviewsRoutes from "./routes/adminReviews.routes";
 import profileRoutes from "./routes/profile.routes";
 import supportRoutes from "./routes/support.routes";
 import adminSupportRoutes from "./routes/adminSupport.routes";
+import adminCodRemittanceRoutes from "./routes/adminCodRemittance.routes";
 
 export function createApp() {
   const app = express();
@@ -97,6 +98,7 @@ export function createApp() {
   app.use("/api/profile", profileRoutes);
   app.use("/api/support", supportRoutes);
   app.use("/api/admin/support", adminSupportRoutes);
+  app.use("/api/admin/cod-remittance", adminCodRemittanceRoutes);
 
   app.use(errorHandler);
 

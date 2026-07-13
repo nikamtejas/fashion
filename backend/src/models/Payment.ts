@@ -22,6 +22,14 @@ const PaymentSchema = new Schema(
     razorpayMethod: { type: String }, // card/upi/netbanking/... reported after verification
     snapmintPlan: { type: SnapmintPlanSchema },
     codConvenienceFee: { type: Number, default: 0 },
+    // Only set for HOME-delivery COD paid in cash: the courier collects cash
+    // at the door but remits it to our bank account in batches later, so
+    // "PAID" (customer settled) and "REMITTED" (money is actually ours) are
+    // different moments. Store-pickup COD skips this — that cash lands in
+    // the till directly, nothing to remit.
+    codRemittanceStatus: { type: String, enum: ["PENDING", "REMITTED"] },
+    codCollectedAt: { type: Date },
+    codRemittance: { type: Schema.Types.ObjectId, ref: "CodRemittance" },
   },
   { timestamps: true }
 );

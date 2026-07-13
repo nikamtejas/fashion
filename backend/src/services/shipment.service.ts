@@ -266,6 +266,20 @@ export async function advanceMockShipments() {
   // driving realtime tracking even when other services (Razorpay) go live.
   if (!serviceMock("BLUEDART")) return;
 
+  // Nobody mans a warehouse in this mock environment — without this, a
+  // shipment (and therefore any tracking data at all) only exists once an
+  // admin manually clicks "Ready to ship" on every order. Auto-ship any
+  // confirmed HOME order so customers see live tracking within one tick of
+  // checkout, same as they would on Amazon. Live Blue Dart keeps the manual
+  // admin gate (packing takes real time there).
+  const unshipped = await Order.find({ deliveryMethod: "HOME", status: { $in: ["PLACED", "CONFIRMED"] } })
+    .select("_id")
+    .lean();
+  for (const o of unshipped) {
+    if (await Shipment.exists({ order: o._id, direction: "FORWARD" })) continue;
+    await createShipmentForOrder(String(o._id)).catch((err) => console.error(`auto-ship ${o._id} failed:`, err));
+  }
+
   const active = await Shipment.find({
     status: { $in: ["PICKUP_SCHEDULED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"] },
   });
