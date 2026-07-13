@@ -39,18 +39,24 @@ router.post("/razorpay", raw({ type: "application/json" }), async (req, res) => 
   const payment = await Payment.findOne({ razorpayOrderId });
   if (!payment) return res.json({ ok: true }); // not ours / already cleaned up
 
+  let justConfirmed = false;
   if (body.event === "payment.captured" && payment.status !== "PAID") {
     payment.status = "PAID";
     if (razorpayPaymentId) payment.razorpayPaymentId = razorpayPaymentId;
     await payment.save();
     await Order.updateOne({ _id: payment.order, status: "PENDING_PAYMENT" }, { status: "PLACED" });
-    await onOrderConfirmed(String(payment.order));
+    justConfirmed = true;
   } else if (body.event === "payment.failed" && payment.status === "PENDING") {
     payment.status = "FAILED";
     await payment.save();
   }
 
   res.json({ ok: true });
+  // Razorpay retries webhooks that don't ack quickly — respond first, then
+  // run the email/invoice/loyalty chain (real SMTP sends can take seconds).
+  if (justConfirmed) {
+    onOrderConfirmed(String(payment.order)).catch((err) => console.error("onOrderConfirmed failed:", err));
+  }
 });
 
 export default router;

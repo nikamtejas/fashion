@@ -25,6 +25,7 @@ interface TrackData {
   kind: "HOME" | "PICKUP";
   orderNumber: string;
   status: string;
+  items?: { name: string; qty: number; image?: string }[];
   awbNumber?: string | null;
   courier?: string;
   events?: TrackEvent[];
@@ -93,8 +94,15 @@ export default function TrackPage() {
     <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl">Tracking {data.orderNumber}</h1>
+          <h1 className="font-display text-2xl">
+            {data.items && data.items.length > 0
+              ? data.items.length === 1
+                ? data.items[0].name
+                : `${data.items[0].name} + ${data.items.length - 1} more`
+              : `Tracking ${data.orderNumber}`}
+          </h1>
           <p className="mt-1 text-xs text-foreground/50">
+            Order {data.orderNumber} ·{" "}
             {data.kind === "HOME" && data.awbNumber ? `${data.courier} · AWB ${data.awbNumber}` : "In-store pickup"}
             {lastFetched && ` · updated ${lastFetched.toLocaleTimeString("en-IN")}`}
           </p>

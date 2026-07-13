@@ -8,6 +8,7 @@ import { Payment } from "../models/Payment";
 import { sendEmail, sendOtpEmail } from "../lib/mailer";
 import { findValidOtp, issueOtp } from "../lib/otp";
 import { sendDeliveredEmail } from "../services/orderEmails.service";
+import { orderSubject } from "../lib/orderSubject";
 
 const router = Router();
 router.use(requireAdmin);
@@ -41,12 +42,12 @@ router.post("/:id/ready", async (req, res) => {
   appt.status = "READY";
   await appt.save();
 
-  const order = await Order.findById(appt.order).select("orderNumber user").lean();
+  const order = await Order.findById(appt.order).select("orderNumber user items").lean();
   const user = order ? await User.findById(order.user).select("email").lean() : null;
   if (user && order) {
     await sendEmail(
       user.email,
-      `Your LuxeLoom order ${order.orderNumber} is ready for pickup`,
+      orderSubject("Ready for pickup", order.orderNumber, order.items),
       [
         `Great news — your order is packed, quality-checked and waiting for you.`,
         ``,

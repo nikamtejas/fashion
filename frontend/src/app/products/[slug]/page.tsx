@@ -4,11 +4,12 @@ import { API_URL } from "@/lib/api";
 import { ProductDetailClient } from "./ProductDetailClient";
 import type { ProductDetail } from "./types";
 
-export const dynamic = "force-dynamic";
-
 async function getProduct(slug: string): Promise<ProductDetail | null> {
   try {
-    const res = await fetch(`${API_URL}/api/products/${slug}`, { cache: "no-store" });
+    // Same tradeoff as the home page — checkout re-validates stock/price
+    // server-side, so a short cache here is safe and cuts a live round trip
+    // off every product page visit.
+    const res = await fetch(`${API_URL}/api/products/${slug}`, { next: { revalidate: 30 } });
     if (!res.ok) return null;
     const data = await res.json();
     return data.product;

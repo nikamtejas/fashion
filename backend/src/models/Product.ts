@@ -85,6 +85,12 @@ const ProductSchema = new Schema(
 
 ProductSchema.index({ name: "text", description: "text", tags: "text" });
 ProductSchema.index({ category: 1, status: 1 });
+// Product listing always filters status: PUBLISHED, then commonly sorts by
+// recency or price, or filters by price range/variant size/color.
+ProductSchema.index({ status: 1, createdAt: -1 });
+ProductSchema.index({ status: 1, "pricing.finalPrice": 1 });
+ProductSchema.index({ "variants.size": 1 });
+ProductSchema.index({ "variants.color": 1 });
 
 export type ProductDoc = InferSchemaType<typeof ProductSchema>;
 

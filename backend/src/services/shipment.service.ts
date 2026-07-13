@@ -10,9 +10,14 @@ import { notifyUser } from "./notify.service";
 import { HttpError } from "./order.service";
 import { processRefund } from "./returns.service";
 import { sendDeliveredEmail } from "./orderEmails.service";
+import { orderSubject } from "../lib/orderSubject";
 
 // LuxeLoom's (fictional) origin warehouse.
 export const WAREHOUSE = { label: "Bhiwandi Hub", lat: 19.2813, lng: 73.0483, pincode: "421302" };
+
+/** How long a mock-mode HOME order sits at PLACED/CONFIRMED before the
+ * simulator auto-ships it — see advanceMockShipments(). */
+export const AUTO_SHIP_DELAY_MS = 3 * 60 * 1000;
 
 const STATUS_LABELS: Record<string, string> = {
   PICKUP_SCHEDULED: "Pickup scheduled",
@@ -67,6 +72,12 @@ export async function transitionShipment(
   const order = await Order.findById(shipment.order);
   if (!order) return;
 
+  // A cancelled order stays cancelled even if its courier shipment (real or
+  // mock-simulated) keeps reporting checkpoints after the fact — the parcel
+  // may still physically move (see cancelOrder()'s RTO transition), but the
+  // order record must never get pulled back into the live delivery lifecycle.
+  if (shipment.direction === "FORWARD" && order.status === "CANCELLED") return;
+
   if (shipment.direction === "FORWARD") {
     const orderStatus = status === "PENDING" ? order.status : status;
     if (order.status !== orderStatus) {
@@ -79,7 +90,7 @@ export async function transitionShipment(
     } else {
       await notifyUser(
         String(order.user),
-        `Order ${order.orderNumber}: ${STATUS_LABELS[status] ?? status}`,
+        orderSubject(STATUS_LABELS[status] ?? status, order.orderNumber, order.items),
         opts.description ?? `${STATUS_LABELS[status]}${opts.location ? ` — ${opts.location}` : ""}`,
         `/track/${order._id}`
       );
@@ -91,11 +102,21 @@ export async function transitionShipment(
       if (status === "PICKED_UP" && refund.status === "APPROVED") {
         refund.status = "ITEM_PICKED_UP";
         await refund.save();
-        await notifyUser(String(order.user), "Return picked up", "Your return is on its way back to us.", `/account/orders/${order._id}`);
+        await notifyUser(
+          String(order.user),
+          orderSubject("Return picked up", order.orderNumber, order.items),
+          "Your return is on its way back to us.",
+          `/account/orders/${order._id}`
+        );
       } else if (status === "DELIVERED" && ["ITEM_PICKED_UP", "APPROVED"].includes(refund.status)) {
         refund.status = "RECEIVED";
         await refund.save();
-        await notifyUser(String(order.user), "Return received", "We've received your return — your refund is being processed.", `/account/orders/${order._id}`);
+        await notifyUser(
+          String(order.user),
+          orderSubject("Return received", order.orderNumber, order.items),
+          "We've received your return — your refund is being processed.",
+          `/account/orders/${order._id}`
+        );
         await processRefund(String(refund._id));
       }
     }
@@ -269,10 +290,20 @@ export async function advanceMockShipments() {
   // Nobody mans a warehouse in this mock environment — without this, a
   // shipment (and therefore any tracking data at all) only exists once an
   // admin manually clicks "Ready to ship" on every order. Auto-ship any
-  // confirmed HOME order so customers see live tracking within one tick of
+  // confirmed HOME order so customers see live tracking soon after
   // checkout, same as they would on Amazon. Live Blue Dart keeps the manual
   // admin gate (packing takes real time there).
-  const unshipped = await Order.find({ deliveryMethod: "HOME", status: { $in: ["PLACED", "CONFIRMED"] } })
+  //
+  // Waiting AUTO_SHIP_DELAY_MS before the first tick picks an order up
+  // mimics that same real-world packing delay: without it, a HOME order's
+  // self-cancel window (PLACED/CONFIRMED/PACKED, see orders.routes.ts) is
+  // open for only one 30s tick — in practice too short for a customer to
+  // ever see the "Cancel order" button before it ships.
+  const unshipped = await Order.find({
+    deliveryMethod: "HOME",
+    status: { $in: ["PLACED", "CONFIRMED"] },
+    createdAt: { $lte: new Date(Date.now() - AUTO_SHIP_DELAY_MS) },
+  })
     .select("_id")
     .lean();
   for (const o of unshipped) {

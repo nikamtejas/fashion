@@ -20,6 +20,8 @@ import {
 import { computeEmiPlans, createSnapmintOrder, EMI_TENURES, type EmiTenure } from "../lib/integrations/snapmint";
 import { INTEGRATIONS_MOCK } from "../lib/integrations";
 import { onOrderConfirmed } from "../services/confirmation.service";
+import { notifyAdmins } from "../services/notify.service";
+import { orderSubject } from "../lib/orderSubject";
 import crypto from "node:crypto";
 
 const router = Router();
@@ -186,9 +188,12 @@ router.post("/razorpay/verify", async (req, res) => {
 
     order.status = "PLACED";
     await order.save();
-    await onOrderConfirmed(String(order._id));
 
     res.json({ ok: true, order });
+    // Confirmation email/invoice/loyalty run after responding — real SMTP
+    // sends (and one per admin) can take seconds, and none of it should
+    // hold up the customer seeing their order confirmed.
+    onOrderConfirmed(String(order._id)).catch((err) => console.error("onOrderConfirmed failed:", err));
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     throw err;
@@ -281,9 +286,9 @@ router.post("/cod/place", async (req, res) => {
       initialStatus: "PLACED",
       loyaltyPoints: parsed.data.loyaltyPoints,
     });
-    if (order) await onOrderConfirmed(String(order._id));
-
     res.status(201).json({ order });
+    // Same as /razorpay/verify — don't make the customer wait on emails.
+    if (order) onOrderConfirmed(String(order._id)).catch((err) => console.error("onOrderConfirmed failed:", err));
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     throw err;
@@ -427,13 +432,15 @@ router.post("/snapmint/callback", async (req, res) => {
       await payment.save();
       order.status = "PLACED";
       await order.save();
-      await onOrderConfirmed(String(order._id));
     } else {
       payment.status = "FAILED";
       await payment.save();
     }
 
     res.json({ ok: parsed.data.status === "success", order });
+    if (parsed.data.status === "success") {
+      onOrderConfirmed(String(order._id)).catch((err) => console.error("onOrderConfirmed failed:", err));
+    }
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     throw err;
@@ -441,6 +448,37 @@ router.post("/snapmint/callback", async (req, res) => {
 });
 
 // ─── Retry screen support ───────────────────────────────────────────────────
+
+const maskAccountNumber = (num: string) => (num.length <= 4 ? num : `••••${num.slice(-4)}`);
+
+/** Where a refund went (or will go) — surfaced on the order page so a
+ * cancelled+paid order is traceable, not just "refunded" with no receipt. */
+function buildRefundDestination(payment: {
+  method: string;
+  status: string;
+  razorpayPaymentId?: string | null;
+  refundBankDetails?: { accountName?: string | null; accountNumber?: string | null; ifsc?: string | null } | null;
+}): { label: string; detail?: string } | undefined {
+  if (payment.status !== "REFUNDED" && payment.status !== "REFUND_PENDING") return undefined;
+
+  if (payment.method === "RAZORPAY") {
+    return {
+      label: "Refunded to original payment method (Razorpay)",
+      detail: payment.razorpayPaymentId ? `Ref: ${payment.razorpayPaymentId}` : undefined,
+    };
+  }
+  if (payment.method === "SNAPMINT") {
+    return { label: "Refunded via Snapmint EMI plan" };
+  }
+  if (payment.refundBankDetails?.accountNumber) {
+    const b = payment.refundBankDetails;
+    return {
+      label: "Bank transfer",
+      detail: `${b.accountName ?? ""} · ${maskAccountNumber(b.accountNumber!)}${b.ifsc ? ` · ${b.ifsc}` : ""}`.trim(),
+    };
+  }
+  return undefined;
+}
 
 router.get("/order/:orderId", async (req, res) => {
   try {
@@ -455,11 +493,54 @@ router.get("/order/:orderId", async (req, res) => {
         total: order.pricing.total,
       },
       payment: payment
-        ? { method: payment.method, status: payment.status, snapmintPlan: payment.snapmintPlan ?? null }
+        ? {
+            method: payment.method,
+            status: payment.status,
+            snapmintPlan: payment.snapmintPlan ?? null,
+            hasRefundBankDetails: Boolean(payment.refundBankDetails?.accountNumber),
+            refundDestination: buildRefundDestination(payment),
+          }
         : null,
       emiEligible: order.pricing.total >= settings.emiMinimumOrderValue,
       canRetry: order.status === "PENDING_PAYMENT",
     });
+  } catch (err) {
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+// ─── Manual-payout refunds (cancellations with no refund API) ─────────────
+
+const refundBankDetailsSchema = z.object({
+  accountName: z.string().min(2),
+  accountNumber: z.string().min(4),
+  ifsc: z.string().min(4),
+});
+
+/** Customer supplies where to send a cancellation refund that has no
+ * automated rail (COD/CASH/CARD/UPI) — see cancelOrder() in order.service.ts,
+ * which parks such refunds at REFUND_PENDING until this is called. */
+router.post("/order/:orderId/refund-bank-details", async (req, res) => {
+  const parsed = refundBankDetailsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Provide your account holder name, account number and IFSC" });
+
+  try {
+    const order = await loadOwnOrder(req.params.orderId, req.user!.uid);
+    const payment = await Payment.findOne({ order: order._id });
+    if (!payment || payment.status !== "REFUND_PENDING") {
+      return res.status(400).json({ error: "No refund is awaiting bank details on this order" });
+    }
+
+    payment.refundBankDetails = parsed.data;
+    await payment.save();
+
+    await notifyAdmins(
+      orderSubject("Refund payout ready", order.orderNumber, order.items),
+      `Bank details received for order ${order.orderNumber} (₹${payment.amount.toLocaleString("en-IN")}). Pay it out and mark it refunded from the admin refund payouts page.`
+    );
+
+    res.json({ ok: true });
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     throw err;

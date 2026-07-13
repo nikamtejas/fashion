@@ -15,7 +15,9 @@ import { env } from "../config/env";
 import { renderOrderConfirmationA4, pdfToBuffer } from "./invoice.service";
 import { refundPayment } from "../lib/integrations/razorpay";
 import { cancelSnapmintOrder } from "../lib/integrations/snapmint";
-import { notifyUser, notifyAdmins } from "./notify.service";
+import { Shipment } from "../models/Shipment";
+import { notifyUser } from "./notify.service";
+import { orderSubject } from "../lib/orderSubject";
 
 export interface AddressInput {
   name: string;
@@ -247,11 +249,15 @@ export async function sendOrderConfirmationEmail(orderId: string) {
     console.error("confirmation email: PDF failed:", err);
   }
 
+  const itemLines = order.items.map((i) => `  · ${i.name}${i.size ? ` (${i.size}${i.color ? `, ${i.color}` : ""})` : ""} × ${i.qty}`);
+
   await sendEmail(
     user.email,
-    `Order ${order.orderNumber} confirmed — thank you for choosing LuxeLoom`,
+    orderSubject("Order confirmed", order.orderNumber, order.items),
     [
       `Thank you for choosing LuxeLoom — your order ${order.orderNumber} is confirmed and in caring hands.`,
+      ``,
+      ...itemLines,
       ``,
       `Total paid: ₹${order.pricing.total.toLocaleString("en-IN")}`,
       ``,
@@ -388,26 +394,46 @@ export async function cancelOrder(orderId: string, opts: { reason: string; cance
     await session.endSession();
   }
 
+  // A HOME order with an in-flight courier shipment needs that shipment
+  // stopped too — otherwise the mock simulator (or a live Blue Dart
+  // tracking update) keeps advancing it, and transitionShipment's own
+  // CANCELLED guard only stops it from corrupting Order.status, not from
+  // reporting further checkpoints. RTO is the honest state: the parcel is
+  // physically on its way back.
+  if (order.deliveryMethod === "HOME") {
+    const shipment = await Shipment.findOne({
+      order: order._id,
+      direction: "FORWARD",
+      status: { $in: ["PICKUP_SCHEDULED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"] },
+    });
+    if (shipment) {
+      const { transitionShipment } = await import("./shipment.service.js");
+      await transitionShipment(shipment, "RTO", { description: "Order cancelled — parcel is being returned to origin" });
+    }
+  }
+
   // Money movement happens outside the transaction — refund calls are
   // external requests and shouldn't hold a DB transaction open.
   let refundMessage: string | null = null;
-  let codManualPayoutMethod: string | null = null;
   if (payment?.status === "PAID") {
     if (payment.method === "RAZORPAY" && payment.razorpayPaymentId) {
       await refundPayment(payment.razorpayPaymentId, order.pricing.total);
+      payment.status = "REFUNDED";
       refundMessage = "Your refund has been processed — it should reflect within minutes.";
     } else if (payment.method === "SNAPMINT" && payment.snapmintPlan?.snapmintOrderId) {
       await cancelSnapmintOrder(payment.snapmintPlan.snapmintOrderId);
+      payment.status = "REFUNDED";
       refundMessage = "Your EMI plan has been cancelled — any instalments already paid will be refunded within 5-7 business days.";
     } else {
       // COD/CASH/UPI/CARD: cash was already collected (counter handover or
-      // door collection) with no bank account on file — needs a manual
-      // payout. Mirrors returns.service.processRefund's COD branch: mark
-      // REFUNDED to mean "refund initiated," not "cash physically returned."
-      codManualPayoutMethod = payment.method;
-      refundMessage = "Your refund has been initiated — our team will contact you to arrange the payout within 3-5 business days.";
+      // door collection), and there's no refund API for it — hold at
+      // REFUND_PENDING until the customer supplies a bank account and an
+      // admin pays it out (see payments.routes.ts refund-bank-details and
+      // adminOrders.routes.ts mark-refund-paid).
+      payment.status = "REFUND_PENDING";
+      refundMessage =
+        "We'll refund this to your bank account — add your account details from your order page and we'll pay it out within 3-5 business days of receiving them.";
     }
-    payment.status = "REFUNDED";
     await payment.save();
   } else if (payment?.status === "PENDING") {
     // Nothing was ever captured — void the intent, nothing to refund.
@@ -417,17 +443,10 @@ export async function cancelOrder(orderId: string, opts: { reason: string; cance
 
   await notifyUser(
     String(order.user),
-    `Order ${order.orderNumber} cancelled`,
+    orderSubject("Order cancelled", order.orderNumber, order.items),
     refundMessage ? `Your order has been cancelled. ${refundMessage}` : "Your order has been cancelled.",
     `/account/orders/${order._id}`
   );
-
-  if (codManualPayoutMethod) {
-    await notifyAdmins(
-      `Manual refund needed — order ${order.orderNumber}`,
-      `Order ${order.orderNumber} was cancelled after payment (₹${order.pricing.total.toLocaleString("en-IN")}) was already collected via ${codManualPayoutMethod}. Arrange the payout manually — no bank account details are on file for this order.`
-    );
-  }
 
   return order;
 }

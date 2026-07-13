@@ -14,6 +14,7 @@ import { refundPayment } from "../lib/integrations/razorpay";
 import { cancelSnapmintOrder } from "../lib/integrations/snapmint";
 import { notifyUser } from "./notify.service";
 import { HttpError } from "./order.service";
+import { orderSubject } from "../lib/orderSubject";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -157,7 +158,7 @@ export async function createReturnRequest(input: CreateReturnInput) {
 
   await notifyUser(
     input.userId,
-    `Return requested — order ${order.orderNumber}`,
+    orderSubject("Return requested", order.orderNumber, order.items),
     input.method === "STORE"
       ? "Your drop-off slot is booked. We'll review your request shortly — refunds are instant once the store checks the item."
       : "We'll review your request shortly and schedule a reverse pickup once approved.",
@@ -185,7 +186,7 @@ export async function approveReturn(refundId: string) {
   if (order) {
     await notifyUser(
       String(order.user),
-      `Return approved — order ${order.orderNumber}`,
+      orderSubject("Return approved", order.orderNumber, order.items),
       refund.method === "COURIER"
         ? "A reverse pickup has been scheduled. Keep the items packed and ready."
         : "Show your return QR code at the store — your refund is processed on the spot after a quick check.",
@@ -210,7 +211,7 @@ export async function rejectReturn(refundId: string, reason: string) {
 
   const order = await Order.findById(refund.order).lean();
   if (order) {
-    await notifyUser(String(order.user), `Return declined — order ${order.orderNumber}`, reason, `/account/orders/${order._id}`);
+    await notifyUser(String(order.user), orderSubject("Return declined", order.orderNumber, order.items), reason, `/account/orders/${order._id}`);
   }
   return refund;
 }
@@ -239,7 +240,7 @@ export async function storeQc(refundId: string, opts: { qrCode: string; pass: bo
     await refund.save();
     const order = await Order.findById(refund.order).lean();
     if (order) {
-      await notifyUser(String(order.user), `Return declined — order ${order.orderNumber}`, refund.rejectionReason, `/account/orders/${order._id}`);
+      await notifyUser(String(order.user), orderSubject("Return declined", order.orderNumber, order.items), refund.rejectionReason, `/account/orders/${order._id}`);
     }
     return refund;
   }
@@ -298,7 +299,7 @@ export async function processRefund(refundId: string, opts: { instant?: boolean 
 
   await notifyUser(
     String(order.user),
-    `Refund of ₹${amount.toLocaleString("en-IN")} processed`,
+    orderSubject(`Refund of ₹${amount.toLocaleString("en-IN")} processed`, order.orderNumber, order.items),
     creditDays === 0
       ? "Your refund has been processed — it should reflect within minutes."
       : `Expect the credit by ${refund.expectedCreditDate.toLocaleDateString("en-IN")}.`,

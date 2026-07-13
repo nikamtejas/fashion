@@ -37,6 +37,10 @@ router.get("/:key", async (req, res) => {
 
   if (!order) return res.status(404).json({ error: "Nothing found for that order or AWB number" });
 
+  // Bare order numbers/AWBs aren't enough context on a page a customer may
+  // have bookmarked or shared — show what's actually in the parcel.
+  const items = order.items.map((i) => ({ name: i.name, qty: i.qty, image: i.image }));
+
   // In-store pickup orders have their own lifecycle instead of a shipment.
   if (order.deliveryMethod === "PICKUP") {
     const appointment = await PickupAppointment.findOne({ order: order._id, type: "PICKUP" })
@@ -55,6 +59,7 @@ router.get("/:key", async (req, res) => {
       kind: "PICKUP",
       orderNumber: order.orderNumber,
       status: order.status,
+      items,
       timeline: steps.map((label, i) => ({
         label,
         done: i <= stage,
@@ -71,6 +76,7 @@ router.get("/:key", async (req, res) => {
       kind: "HOME",
       orderNumber: order.orderNumber,
       status: order.status,
+      items,
       awbNumber: null,
       events: [{ status: order.status, description: "Order placed — preparing your shipment", timestamp: order.createdAt }],
       route: [],
@@ -102,6 +108,7 @@ router.get("/:key", async (req, res) => {
     kind: "HOME",
     orderNumber: order.orderNumber,
     status: order.status,
+    items,
     awbNumber: shipment.awbNumber,
     courier: "Blue Dart (DHL)",
     events: events.map((e) => ({

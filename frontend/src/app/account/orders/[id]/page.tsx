@@ -9,6 +9,7 @@ import { apiFetch, API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { SlotCalendar } from "@/components/checkout/SlotCalendar";
@@ -27,6 +28,33 @@ interface OrderDetail {
   shippingAddress?: { name: string; line1: string; line2?: string; city: string; state: string; pincode: string };
   storeLocation?: { _id: string; name: string; address: string; city: string; state: string; pincode: string };
   coupon?: { code: string };
+}
+
+interface OrderPayment {
+  method: string;
+  status: string;
+  hasRefundBankDetails?: boolean;
+  refundDestination?: { label: string; detail?: string };
+}
+
+/** Mirrors the messaging cancelOrder() sends by email — shown here too since
+ * a cancellation refund isn't tracked by the returns/RefundRequest flow. */
+function cancellationRefundMessage(order: OrderDetail, payment?: OrderPayment): string {
+  if (!payment || payment.status === "PENDING" || payment.status === "FAILED") {
+    return "This order was cancelled — no payment was collected, so no refund is due.";
+  }
+  const amount = `₹${order.pricing.total.toLocaleString("en-IN")}`;
+  if (payment.status === "REFUND_PENDING") {
+    return payment.hasRefundBankDetails
+      ? `Refund of ${amount} is on its way — we'll credit it to your bank account within 3-5 business days.`
+      : `We'll refund ${amount} to your bank account — add your details below to receive it.`;
+  }
+  // REFUNDED
+  if (payment.method === "RAZORPAY") return `Refund of ${amount} processed — it should reflect within minutes.`;
+  if (payment.method === "SNAPMINT") {
+    return `Your EMI plan was cancelled — ${amount} in instalments already paid will be refunded within 5-7 business days.`;
+  }
+  return `Refund of ${amount} has been credited to your bank account.`;
 }
 
 interface Appointment {
@@ -66,9 +94,12 @@ export default function OrderDetailPage() {
   const [busy, setBusy] = React.useState(false);
   const [returns, setReturns] = React.useState<ReturnView[]>([]);
   const [returnOpen, setReturnOpen] = React.useState(false);
-  const [payment, setPayment] = React.useState<{ method: string; status: string } | undefined>();
+  const [payment, setPayment] = React.useState<OrderPayment | undefined>();
   const [payOnlineBusy, setPayOnlineBusy] = React.useState(false);
   const [mockModal, setMockModal] = React.useState(false);
+  const [bankModalOpen, setBankModalOpen] = React.useState(false);
+  const [bank, setBank] = React.useState({ accountName: "", accountNumber: "", ifsc: "" });
+  const [bankBusy, setBankBusy] = React.useState(false);
 
   React.useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
@@ -84,7 +115,7 @@ export default function OrderDetailPage() {
     apiFetch<{ returns: ReturnView[] }>(`/api/returns?orderId=${id}`)
       .then((data) => setReturns(data.returns))
       .catch(() => {});
-    apiFetch<{ payment: { method: string; status: string } | null }>(`/api/payments/order/${id}`)
+    apiFetch<{ payment: OrderPayment | null }>(`/api/payments/order/${id}`)
       .then((data) => setPayment(data.payment ?? undefined))
       .catch(() => {});
   }, [id, router]);
@@ -114,17 +145,39 @@ export default function OrderDetailPage() {
     setBusy(true);
     try {
       await apiFetch(`/api/appointments/${appointment._id}/cancel`, { method: "POST" });
-      toast({
-        title: "Order cancelled",
-        description:
-          payment?.status === "PAID" ? "Any payment already made will be refunded to your original payment method." : undefined,
-        variant: "success",
-      });
+      toast({ title: "Order cancelled", variant: "success" });
       load();
     } catch (err) {
       toast({ title: "Couldn't cancel", description: err instanceof Error ? err.message : undefined, variant: "error" });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleCancelHomeOrder() {
+    setBusy(true);
+    try {
+      await apiFetch(`/api/orders/${id}/cancel`, { method: "POST" });
+      toast({ title: "Order cancelled", variant: "success" });
+      load();
+    } catch (err) {
+      toast({ title: "Couldn't cancel", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitRefundBankDetails() {
+    setBankBusy(true);
+    try {
+      await apiFetch(`/api/payments/order/${id}/refund-bank-details`, { method: "POST", json: bank });
+      toast({ title: "Bank details received", description: "We'll credit your refund within 3-5 business days.", variant: "success" });
+      setBankModalOpen(false);
+      load();
+    } catch (err) {
+      toast({ title: "Couldn't save bank details", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setBankBusy(false);
     }
   }
 
@@ -192,6 +245,7 @@ export default function OrderDetailPage() {
 
   if (!order) return <div className="py-20 text-center text-sm text-foreground/50">Loading…</div>;
 
+  const canCancelHome = order.deliveryMethod === "HOME" && ["PLACED", "CONFIRMED", "PACKED"].includes(order.status);
   const appointmentActive = appointment && ["BOOKED", "READY"].includes(appointment.status);
   const canPayOnline =
     payment?.method === "COD" &&
@@ -222,6 +276,11 @@ export default function OrderDetailPage() {
           {order.status === "DELIVERED" && (
             <Button size="sm" magnetic={false} onClick={() => setReturnOpen(true)}>
               Return / refund
+            </Button>
+          )}
+          {canCancelHome && (
+            <Button size="sm" variant="ghost" magnetic={false} disabled={busy} onClick={handleCancelHomeOrder}>
+              Cancel order
             </Button>
           )}
         </div>
@@ -342,9 +401,36 @@ export default function OrderDetailPage() {
         />
       </div>
 
-      {returns.length > 0 && (
+      {(returns.length > 0 || order.status === "CANCELLED") && (
         <section className="mt-6 space-y-3">
           <h2 className="font-display text-lg">Returns & refunds</h2>
+          {order.status === "CANCELLED" && (
+            <div className="rounded-2xl border border-border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Order cancelled</p>
+                  <p className="mt-0.5 text-xs text-foreground/50">
+                    {payment ? `Paid via ${payment.method}` : "No payment was collected"}
+                  </p>
+                </div>
+                <Badge variant={payment?.status === "REFUNDED" ? "success" : payment?.status === "REFUND_PENDING" ? "accent" : "default"}>
+                  {payment?.status === "REFUNDED" ? "Refunded" : payment?.status === "REFUND_PENDING" ? "Refund pending" : "No refund due"}
+                </Badge>
+              </div>
+              <p className="mt-3 text-xs text-[var(--color-sage-dark)]">{cancellationRefundMessage(order, payment)}</p>
+              {payment?.refundDestination && (
+                <p className="mt-1 text-xs text-foreground/50">
+                  {payment.refundDestination.label}
+                  {payment.refundDestination.detail ? ` · ${payment.refundDestination.detail}` : ""}
+                </p>
+              )}
+              {payment?.status === "REFUND_PENDING" && !payment.hasRefundBankDetails && (
+                <Button size="sm" className="mt-3" magnetic={false} onClick={() => setBankModalOpen(true)}>
+                  Add bank details
+                </Button>
+              )}
+            </div>
+          )}
           {returns.map((r) => (
             <ReturnCard key={r.id} refund={r} />
           ))}
@@ -379,6 +465,28 @@ export default function OrderDetailPage() {
         <Button className="w-full" disabled={payOnlineBusy} onClick={mockPay}>
           {payOnlineBusy ? "Paying…" : "Simulate successful payment"}
         </Button>
+      </Modal>
+
+      <Modal
+        open={bankModalOpen}
+        onOpenChange={setBankModalOpen}
+        title="Where should we send your refund?"
+        description="This order was paid in cash — add your bank account so we can credit the refund."
+      >
+        <div className="space-y-3">
+          <Input label="Account holder name" value={bank.accountName} onChange={(e) => setBank((b) => ({ ...b, accountName: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Account number" value={bank.accountNumber} onChange={(e) => setBank((b) => ({ ...b, accountNumber: e.target.value }))} />
+            <Input label="IFSC" value={bank.ifsc} onChange={(e) => setBank((b) => ({ ...b, ifsc: e.target.value.toUpperCase() }))} />
+          </div>
+          <Button
+            className="w-full"
+            disabled={bankBusy || !bank.accountName || !bank.accountNumber || !bank.ifsc}
+            onClick={submitRefundBankDetails}
+          >
+            {bankBusy ? "Saving…" : "Submit bank details"}
+          </Button>
+        </div>
       </Modal>
     </div>
   );

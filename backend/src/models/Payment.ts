@@ -14,8 +14,22 @@ const PaymentSchema = new Schema(
   {
     order: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
     method: { type: String, enum: ["RAZORPAY", "COD", "SNAPMINT", "CASH", "CARD", "UPI"], required: true },
-    status: { type: String, enum: ["PENDING", "PAID", "FAILED", "REFUNDED"], default: "PENDING", index: true },
+    // REFUND_PENDING = a cancellation refund is due but the payment method
+    // has no refund API (COD/CASH/CARD/UPI) — awaiting the customer's bank
+    // details, then an admin payout, before it becomes REFUNDED.
+    status: {
+      type: String,
+      enum: ["PENDING", "PAID", "FAILED", "REFUNDED", "REFUND_PENDING"],
+      default: "PENDING",
+      index: true,
+    },
     amount: { type: Number, required: true },
+    refundBankDetails: {
+      accountName: { type: String },
+      accountNumber: { type: String },
+      ifsc: { type: String },
+    },
+    refundedAt: { type: Date },
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
     razorpaySignature: { type: String },

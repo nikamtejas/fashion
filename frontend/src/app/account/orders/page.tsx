@@ -56,9 +56,15 @@ export default function OrdersPage() {
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium">{o.orderNumber}</p>
+                <p className="text-sm font-medium">
+                  {o.items.length > 0
+                    ? o.items.length === 1
+                      ? o.items[0].name
+                      : `${o.items[0].name} + ${o.items.length - 1} more`
+                    : o.orderNumber}
+                </p>
                 <p className="mt-0.5 text-xs text-foreground/50">
-                  {new Date(o.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} ·{" "}
+                  {o.orderNumber} · {new Date(o.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} ·{" "}
                   {o.deliveryMethod === "PICKUP" ? `Pickup — ${o.storeLocation?.name ?? "store"}` : "Home delivery"}
                 </p>
               </div>

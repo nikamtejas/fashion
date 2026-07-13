@@ -7,6 +7,7 @@ import { sendEmail } from "../lib/mailer";
 import { env } from "../config/env";
 import { notifyAdmins } from "./notify.service";
 import { loadInvoiceRenderData, renderInvoiceA4, pdfToBuffer } from "./invoice.service";
+import { orderSubject, summarizeItems } from "../lib/orderSubject";
 
 /** Heads-up to every admin when an order becomes real. */
 export async function sendNewOrderAdminEmail(orderId: string) {
@@ -17,7 +18,7 @@ export async function sendNewOrderAdminEmail(orderId: string) {
   const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
 
   await notifyAdmins(
-    `New order ${order.orderNumber} — ₹${order.pricing.total.toLocaleString("en-IN")}`,
+    `New order: ${summarizeItems(order.items)} — ₹${order.pricing.total.toLocaleString("en-IN")} (${order.orderNumber})`,
     [
       `A new order just came in.`,
       ``,
@@ -36,14 +37,14 @@ export async function sendNewOrderAdminEmail(orderId: string) {
  * invoice PDF attached (used instead of the generic notifyUser so the
  * customer gets a single, complete delivery email). */
 export async function sendDeliveredEmail(orderId: string) {
-  const order = await Order.findById(orderId).select("orderNumber user").lean();
+  const order = await Order.findById(orderId).select("orderNumber items user").lean();
   if (!order) return;
   const user = await User.findById(order.user).select("email name").lean();
   if (!user) return;
 
   await Notification.create({
     user: order.user,
-    title: `Order ${order.orderNumber} delivered`,
+    title: orderSubject("Delivered", order.orderNumber, order.items),
     body: "Your GST invoice was emailed to you — it's also on your order page.",
     link: `/account/orders/${order._id}`,
   });
@@ -62,7 +63,7 @@ export async function sendDeliveredEmail(orderId: string) {
   const settings = await getSettings();
   await sendEmail(
     user.email,
-    `Delivered — order ${order.orderNumber}`,
+    orderSubject("Delivered", order.orderNumber, order.items),
     [
       `Your order has arrived — we hope you love every piece.`,
       ``,

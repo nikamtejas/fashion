@@ -20,6 +20,11 @@ function getTransporter() {
         user: process.env.EMAIL_SERVER_USER,
         pass: process.env.EMAIL_SERVER_PASSWORD,
       },
+      // Reuses SMTP connections instead of paying a fresh TCP+TLS+AUTH
+      // handshake per send — matters most for notifyAdmins(), which sends
+      // one email per admin back to back.
+      pool: true,
+      maxConnections: 3,
     });
   }
   return transporter;

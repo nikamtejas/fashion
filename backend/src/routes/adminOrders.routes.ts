@@ -11,6 +11,7 @@ import { HttpError, cancelOrder } from "../services/order.service";
 import { buildShippingLabel } from "../lib/shippingLabel";
 import { notifyUser } from "../services/notify.service";
 import { sendDeliveredEmail } from "../services/orderEmails.service";
+import { orderSubject } from "../lib/orderSubject";
 
 const router = Router();
 router.use(requireAdmin);
@@ -46,13 +47,13 @@ const bulkSchema = z.object({
  * own (it drives the courier lifecycle itself). CANCELLED is handled
  * separately below since it needs stock restore + refund per order, not a
  * blanket updateMany. */
-const BULK_STATUS_COPY: Record<string, { title: (n: string) => string; body: string }> = {
+const BULK_STATUS_COPY: Record<string, { title: (n: string, items: { name: string }[]) => string; body: string }> = {
   CONFIRMED: {
-    title: (n) => `Order ${n} confirmed`,
+    title: (n, items) => orderSubject("Order confirmed", n, items),
     body: "We're preparing your pieces now — you'll get tracking details the moment your order ships.",
   },
   PACKED: {
-    title: (n) => `Order ${n} is packed`,
+    title: (n, items) => orderSubject("Order packed", n, items),
     body: "Your pieces are packed, quality-checked and ready to ship.",
   },
 };
@@ -79,7 +80,7 @@ router.post("/bulk-status", async (req, res) => {
 
   // Snapshot first so only orders whose status actually changes get emailed.
   const affected = await Order.find({ _id: { $in: parsed.data.ids }, status: { $ne: "PENDING_PAYMENT" } })
-    .select("orderNumber user status")
+    .select("orderNumber user status items")
     .lean();
   const result = await Order.updateMany(
     { _id: { $in: parsed.data.ids }, status: { $ne: "PENDING_PAYMENT" } },
@@ -96,7 +97,7 @@ router.post("/bulk-status", async (req, res) => {
         await sendDeliveredEmail(String(o._id));
       } else {
         const copy = BULK_STATUS_COPY[parsed.data.status];
-        if (copy) await notifyUser(String(o.user), copy.title(o.orderNumber), copy.body, `/account/orders/${o._id}`);
+        if (copy) await notifyUser(String(o.user), copy.title(o.orderNumber, o.items), copy.body, `/account/orders/${o._id}`);
       }
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -164,6 +165,41 @@ router.post("/:id/cod/mark-cash-collected", async (req, res) => {
   if (result.modifiedCount === 0) {
     return res.status(400).json({ error: "No pending COD payment to collect on this order" });
   }
+  res.json({ ok: true });
+});
+
+/** Cancellation refunds with no refund API (COD/CASH/CARD/UPI) park at
+ * REFUND_PENDING until the customer submits bank details — see
+ * payments.routes.ts refund-bank-details. */
+router.get("/refunds/pending", async (req, res) => {
+  const payments = await Payment.find({ status: "REFUND_PENDING" })
+    .populate({ path: "order", select: "orderNumber user pricing.total cancelledAt", populate: { path: "user", select: "email" } })
+    .sort({ updatedAt: -1 })
+    .lean();
+  res.json({ payments });
+});
+
+router.post("/:id/mark-refund-paid", async (req, res) => {
+  const order = await Order.findById(req.params.id).select("orderNumber user pricing.total items").lean();
+  if (!order) return res.status(404).json({ error: "Order not found" });
+
+  const payment = await Payment.findOne({ order: order._id, status: "REFUND_PENDING" });
+  if (!payment) return res.status(400).json({ error: "No pending manual refund on this order" });
+  if (!payment.refundBankDetails?.accountNumber) {
+    return res.status(400).json({ error: "The customer hasn't submitted bank details yet" });
+  }
+
+  payment.status = "REFUNDED";
+  payment.refundedAt = new Date();
+  await payment.save();
+
+  await notifyUser(
+    String(order.user),
+    orderSubject("Refund credited", order.orderNumber, order.items),
+    `Your refund of ₹${order.pricing.total.toLocaleString("en-IN")} has been credited to your bank account.`,
+    `/account/orders/${order._id}`
+  );
+
   res.json({ ok: true });
 });
 

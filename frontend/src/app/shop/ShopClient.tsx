@@ -14,7 +14,15 @@ interface ProductsResponse {
   hasMore: boolean;
 }
 
-export function ShopClient() {
+export function ShopClient({
+  initialProducts = [],
+  initialHasMore = true,
+  initialCategory = null,
+}: {
+  initialProducts?: ShopProduct[];
+  initialHasMore?: boolean;
+  initialCategory?: string | null;
+}) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = React.useState<ShopFilters>({
     category: searchParams.get("category"),
@@ -24,11 +32,14 @@ export function ShopClient() {
     maxPrice: "",
   });
   const [sort, setSort] = React.useState("new");
-  const [products, setProducts] = React.useState<ShopProduct[]>([]);
+  const [products, setProducts] = React.useState<ShopProduct[]>(initialProducts);
   const [page, setPage] = React.useState(1);
-  const [hasMore, setHasMore] = React.useState(true);
-  const [loading, setLoading] = React.useState(true);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [loading, setLoading] = React.useState(false);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
+  // Server already fetched page 1 for this exact category/sort/page combo —
+  // skip the redundant client-side re-fetch on mount.
+  const skipInitialFetch = React.useRef(initialProducts.length > 0 && searchParams.get("category") === initialCategory);
 
   const fetchPage = React.useCallback(
     async (pageNum: number, replace: boolean) => {
@@ -56,6 +67,10 @@ export function ShopClient() {
   );
 
   React.useEffect(() => {
+    if (skipInitialFetch.current) {
+      skipInitialFetch.current = false;
+      return;
+    }
     // fetchPage's identity changes whenever filters/sort change (it's a
     // useCallback over them), so depending on it alone re-runs this on
     // every filter change — data-fetching-effect pattern; setState happens

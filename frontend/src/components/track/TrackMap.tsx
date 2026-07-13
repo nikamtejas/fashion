@@ -35,7 +35,11 @@ export default function TrackMap({
     : [points[points.length - 1].lat, points[points.length - 1].lng];
 
   return (
-    <div className="h-80 overflow-hidden rounded-2xl border border-border">
+    // isolate: Leaflet's own panes/controls use z-index up to 1000, which
+    // otherwise leaks into the root stacking context and renders on top of
+    // fixed-position UI elsewhere on the page (toasts, dropdowns, modals)
+    // whenever they visually overlap the map.
+    <div className="relative isolate h-80 overflow-hidden rounded-2xl border border-border">
       <MapContainer center={center} zoom={6} style={{ height: "100%", width: "100%" }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

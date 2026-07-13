@@ -54,6 +54,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/returns" className="hover:text-foreground">
             Returns
           </Link>
+          <Link href="/admin/refunds" className="hover:text-foreground">
+            Refund payouts
+          </Link>
           <Link href="/admin/customers" className="hover:text-foreground">
             Customers
           </Link>
