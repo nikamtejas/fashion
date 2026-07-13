@@ -12,10 +12,19 @@ function optional(value: string | undefined): string | undefined {
   return value && value.trim() !== "" ? value : undefined;
 }
 
+/** FRONTEND_URL may list several origins (comma-separated) so the API accepts
+ * both localhost and LAN access (phone testing). All entries feed CORS; the
+ * first is the canonical URL used in emails and OAuth redirects. */
+const frontendOrigins = (optional(process.env.FRONTEND_URL) ?? "http://localhost:3000")
+  .split(",")
+  .map((url) => url.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
 export const env = {
   nodeEnv: optional(process.env.NODE_ENV) ?? "development",
   port: Number(optional(process.env.PORT) ?? 4000),
-  frontendUrl: optional(process.env.FRONTEND_URL) ?? "http://localhost:3000",
+  frontendUrl: frontendOrigins[0],
+  frontendOrigins,
 
   mongodbUri: optional(process.env.MONGODB_URI),
 

@@ -1,11 +1,12 @@
 import nodemailer from "nodemailer";
 import { logIntegrationCall, serviceMock } from "./integrations";
+import { env } from "../config/env";
 
 // EMAIL_MOCK=false sends real mail through the configured SMTP account
 // while the global INTEGRATIONS_MOCK can stay on for other services.
 const EMAIL_MOCK = serviceMock("EMAIL");
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
+const FRONTEND_URL = env.frontendUrl;
 
 let transporter: nodemailer.Transporter | null = null;
 

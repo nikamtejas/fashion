@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Heart } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { API_URL, apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useFavoritesStore } from "@/store/favoritesStore";
 import { useCartStore } from "@/store/cartStore";
@@ -52,7 +52,7 @@ export default function FavoritesPage() {
     try {
       // Favorites don't carry a size — add the first in-stock variant.
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/products/${product.slug}`
+        `${API_URL}/api/products/${product.slug}`
       );
       const data = await res.json();
       const variant = (data.product?.variants ?? []).find((v: { stock: number }) => v.stock > 0);

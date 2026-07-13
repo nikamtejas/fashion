@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Drawer } from "@/components/ui/Drawer";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import { useAuth } from "@/context/AuthContext";
 import type { ShopProduct } from "./types";
@@ -30,7 +31,7 @@ export function QuickAddDrawer({
   // The card payload only carries size names — fetch real SKUs when opened.
   React.useEffect(() => {
     if (!open) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/products/${product.slug}`)
+    fetch(`${API_URL}/api/products/${product.slug}`)
       .then((r) => r.json())
       .then((data) => {
         const variants = (data.product?.variants ?? []) as { size: string; sku: string; stock: number; color: string }[];

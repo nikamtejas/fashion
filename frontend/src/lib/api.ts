@@ -1,4 +1,27 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+/** NEXT_PUBLIC_API_URL may list several origins (comma-separated) so the same
+ * build works on localhost and over the LAN (phone testing). The backend must
+ * be reached on the same host the page was opened on, or its CORS/cookie
+ * origin won't match — so pick the entry matching the browser's hostname. */
+const API_URLS = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000")
+  .split(",")
+  .map((url) => url.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+function pickApiUrl(): string {
+  if (typeof window !== "undefined") {
+    const match = API_URLS.find((url) => {
+      try {
+        return new URL(url).hostname === window.location.hostname;
+      } catch {
+        return false;
+      }
+    });
+    if (match) return match;
+  }
+  return API_URLS[0];
+}
+
+export const API_URL = pickApiUrl();
 
 interface ApiFetchOptions extends RequestInit {
   json?: unknown;

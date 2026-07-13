@@ -48,7 +48,7 @@ import adminSupportRoutes from "./routes/adminSupport.routes";
 export function createApp() {
   const app = express();
 
-  app.use(cors({ origin: env.frontendUrl, credentials: true }));
+  app.use(cors({ origin: env.frontendOrigins, credentials: true }));
   // Webhooks verify HMAC signatures over the raw body, so they mount
   // before the JSON parser (the router applies express.raw itself).
   app.use("/api/webhooks", webhooksRoutes);
