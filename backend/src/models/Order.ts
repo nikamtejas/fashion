@@ -70,6 +70,9 @@ const OrderSchema = new Schema(
     payment: { type: Schema.Types.ObjectId, ref: "Payment" },
     status: { type: String, enum: ORDER_STATUSES, default: "PLACED", index: true },
     notes: { type: String },
+    cancelReason: { type: String },
+    cancelledAt: { type: Date },
+    cancelledBy: { type: String, enum: ["CUSTOMER", "ADMIN"] },
   },
   { timestamps: true }
 );

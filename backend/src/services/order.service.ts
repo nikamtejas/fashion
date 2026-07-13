@@ -13,6 +13,9 @@ import { User } from "../models/User";
 import { getSettings } from "../models/Settings";
 import { env } from "../config/env";
 import { renderOrderConfirmationA4, pdfToBuffer } from "./invoice.service";
+import { refundPayment } from "../lib/integrations/razorpay";
+import { cancelSnapmintOrder } from "../lib/integrations/snapmint";
+import { notifyUser, notifyAdmins } from "./notify.service";
 
 export interface AddressInput {
   name: string;
@@ -316,6 +319,117 @@ export async function releaseStaleReservations(now = new Date()) {
       await session.endSession();
     }
   }
+}
+
+const CANCELLABLE_STATUSES = [
+  "PLACED",
+  "CONFIRMED",
+  "PACKED",
+  "PICKUP_SCHEDULED",
+  "IN_TRANSIT",
+  "OUT_FOR_DELIVERY",
+] as const;
+
+export type CancelledBy = "CUSTOMER" | "ADMIN";
+
+/**
+ * Cancels an order pre-fulfillment and reverses everything placeOrder did:
+ * restores stock, un-consumes the coupon, refunds redeemed loyalty points,
+ * cancels a linked pickup appointment, and refunds captured payment via the
+ * original rail. Shared by the customer pickup-cancel route and the admin
+ * bulk-status CANCELLED path so both delivery methods behave identically —
+ * neither had a working refund before this.
+ */
+export async function cancelOrder(orderId: string, opts: { reason: string; cancelledBy: CancelledBy }) {
+  const order = await Order.findById(orderId);
+  if (!order) throw new HttpError(404, "Order not found");
+  if (!(CANCELLABLE_STATUSES as readonly string[]).includes(order.status)) {
+    throw new HttpError(400, `Order is already ${order.status.replaceAll("_", " ").toLowerCase()} and can't be cancelled`);
+  }
+
+  const payment = await Payment.findOne({ order: order._id });
+
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      for (const item of order.items) {
+        await Product.updateOne(
+          { _id: item.product, "variants.sku": item.sku },
+          { $inc: { "variants.$[v].stock": item.qty } },
+          { arrayFilters: [{ "v.sku": item.sku }], session }
+        );
+      }
+      if (order.coupon) {
+        await Coupon.updateOne({ _id: order.coupon, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } }, { session });
+      }
+      if (order.pricing.loyaltyRedeemed > 0) {
+        const { LoyaltyAccount } = await import("../models/LoyaltyAccount.js");
+        await LoyaltyAccount.updateOne(
+          { user: order.user },
+          {
+            $inc: { points: order.pricing.loyaltyRedeemed },
+            $push: { history: { type: "EARN", points: order.pricing.loyaltyRedeemed, order: order._id, date: new Date() } },
+          },
+          { session }
+        );
+      }
+      order.status = "CANCELLED";
+      order.cancelReason = opts.reason;
+      order.cancelledAt = new Date();
+      order.cancelledBy = opts.cancelledBy;
+      await order.save({ session });
+      await PickupAppointment.updateOne(
+        { order: order._id, status: { $in: ["BOOKED", "READY"] } },
+        { status: "CANCELLED" },
+        { session }
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  // Money movement happens outside the transaction — refund calls are
+  // external requests and shouldn't hold a DB transaction open.
+  let refundMessage: string | null = null;
+  let codManualPayoutMethod: string | null = null;
+  if (payment?.status === "PAID") {
+    if (payment.method === "RAZORPAY" && payment.razorpayPaymentId) {
+      await refundPayment(payment.razorpayPaymentId, order.pricing.total);
+      refundMessage = "Your refund has been processed — it should reflect within minutes.";
+    } else if (payment.method === "SNAPMINT" && payment.snapmintPlan?.snapmintOrderId) {
+      await cancelSnapmintOrder(payment.snapmintPlan.snapmintOrderId);
+      refundMessage = "Your EMI plan has been cancelled — any instalments already paid will be refunded within 5-7 business days.";
+    } else {
+      // COD/CASH/UPI/CARD: cash was already collected (counter handover or
+      // door collection) with no bank account on file — needs a manual
+      // payout. Mirrors returns.service.processRefund's COD branch: mark
+      // REFUNDED to mean "refund initiated," not "cash physically returned."
+      codManualPayoutMethod = payment.method;
+      refundMessage = "Your refund has been initiated — our team will contact you to arrange the payout within 3-5 business days.";
+    }
+    payment.status = "REFUNDED";
+    await payment.save();
+  } else if (payment?.status === "PENDING") {
+    // Nothing was ever captured — void the intent, nothing to refund.
+    payment.status = "FAILED";
+    await payment.save();
+  }
+
+  await notifyUser(
+    String(order.user),
+    `Order ${order.orderNumber} cancelled`,
+    refundMessage ? `Your order has been cancelled. ${refundMessage}` : "Your order has been cancelled.",
+    `/account/orders/${order._id}`
+  );
+
+  if (codManualPayoutMethod) {
+    await notifyAdmins(
+      `Manual refund needed — order ${order.orderNumber}`,
+      `Order ${order.orderNumber} was cancelled after payment (₹${order.pricing.total.toLocaleString("en-IN")}) was already collected via ${codManualPayoutMethod}. Arrange the payout manually — no bank account details are on file for this order.`
+    );
+  }
+
+  return order;
 }
 
 export class HttpError extends Error {

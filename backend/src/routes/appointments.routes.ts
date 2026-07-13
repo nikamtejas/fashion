@@ -5,6 +5,7 @@ import { Order } from "../models/Order";
 import { StoreLocation, DEFAULT_PICKUP_CONFIG } from "../models/StoreLocation";
 import { requireAuth } from "../middleware/auth";
 import { buildIcs } from "../lib/appointments";
+import { cancelOrder, HttpError } from "../services/order.service";
 
 const router = Router();
 router.use(requireAuth);
@@ -88,9 +89,25 @@ router.post("/:id/cancel", async (req, res) => {
     return res.status(400).json({ error: "This appointment can no longer be cancelled" });
   }
 
-  found.appt.status = "CANCELLED";
-  await found.appt.save();
-  res.json({ appointment: found.appt });
+  // Return drop-off appointments aren't tied to order fulfillment — just
+  // cancel the slot. Pickup appointments are: cancelling one means the
+  // customer never collected (and never paid cash for, if COD) their order,
+  // so the whole order is cancelled and any captured payment is refunded.
+  if (found.appt.type !== "PICKUP") {
+    found.appt.status = "CANCELLED";
+    await found.appt.save();
+    return res.json({ appointment: found.appt });
+  }
+
+  try {
+    await cancelOrder(String(found.order._id), { reason: "Cancelled by customer", cancelledBy: "CUSTOMER" });
+  } catch (err) {
+    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+
+  const appointment = await PickupAppointment.findById(found.appt._id);
+  res.json({ appointment });
 });
 
 export default router;

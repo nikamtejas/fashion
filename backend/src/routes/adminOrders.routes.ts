@@ -7,7 +7,7 @@ import { ShipmentEvent } from "../models/ShipmentEvent";
 import { PickupAppointment } from "../models/PickupAppointment";
 import { requireAdmin } from "../middleware/auth";
 import { createShipmentForOrder } from "../services/shipment.service";
-import { HttpError } from "../services/order.service";
+import { HttpError, cancelOrder } from "../services/order.service";
 import { buildShippingLabel } from "../lib/shippingLabel";
 import { notifyUser } from "../services/notify.service";
 import { sendDeliveredEmail } from "../services/orderEmails.service";
@@ -43,7 +43,9 @@ const bulkSchema = z.object({
 });
 
 /** Bulk manual status override — for statuses the shipment engine doesn't
- * own (it drives the courier lifecycle itself). */
+ * own (it drives the courier lifecycle itself). CANCELLED is handled
+ * separately below since it needs stock restore + refund per order, not a
+ * blanket updateMany. */
 const BULK_STATUS_COPY: Record<string, { title: (n: string) => string; body: string }> = {
   CONFIRMED: {
     title: (n) => `Order ${n} confirmed`,
@@ -53,15 +55,27 @@ const BULK_STATUS_COPY: Record<string, { title: (n: string) => string; body: str
     title: (n) => `Order ${n} is packed`,
     body: "Your pieces are packed, quality-checked and ready to ship.",
   },
-  CANCELLED: {
-    title: (n) => `Order ${n} cancelled`,
-    body: "Your order has been cancelled. If any payment was captured, your refund will be processed promptly.",
-  },
 };
 
 router.post("/bulk-status", async (req, res) => {
   const parsed = bulkSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Pick orders and a status" });
+
+  if (parsed.data.status === "CANCELLED") {
+    let updated = 0;
+    const errors: string[] = [];
+    for (const id of parsed.data.ids) {
+      try {
+        await cancelOrder(id, { reason: "Cancelled by admin", cancelledBy: "ADMIN" });
+        updated++;
+      } catch (err) {
+        errors.push(err instanceof HttpError ? err.message : "Unknown error");
+        // eslint-disable-next-line no-console
+        console.error(`bulk-cancel failed for order ${id}:`, err);
+      }
+    }
+    return res.json({ updated, errors: errors.length ? errors : undefined });
+  }
 
   // Snapshot first so only orders whose status actually changes get emailed.
   const affected = await Order.find({ _id: { $in: parsed.data.ids }, status: { $ne: "PENDING_PAYMENT" } })

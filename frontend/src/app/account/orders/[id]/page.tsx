@@ -114,7 +114,12 @@ export default function OrderDetailPage() {
     setBusy(true);
     try {
       await apiFetch(`/api/appointments/${appointment._id}/cancel`, { method: "POST" });
-      toast({ title: "Pickup appointment cancelled" });
+      toast({
+        title: "Order cancelled",
+        description:
+          payment?.status === "PAID" ? "Any payment already made will be refunded to your original payment method." : undefined,
+        variant: "success",
+      });
       load();
     } catch (err) {
       toast({ title: "Couldn't cancel", description: err instanceof Error ? err.message : undefined, variant: "error" });
