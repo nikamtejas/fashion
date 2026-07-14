@@ -40,27 +40,29 @@ export function Navbar() {
           : "border-transparent bg-background"
       )}
     >
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-1 px-4 sm:h-20 sm:gap-2 sm:px-6 lg:px-8">
         <button
-          className="p-2 md:hidden"
+          className="shrink-0 rounded-full p-1.5 hover:bg-foreground/5 sm:p-2 md:hidden"
           aria-label="Open menu"
           onClick={() => setMobileOpen((v) => !v)}
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
 
-        <Link href="/" className="font-display text-2xl tracking-tight">
+        {/* Logo is the one element allowed to shrink/truncate — every other
+            element here is a tap target and must stay full-size. */}
+        <Link href="/" className="min-w-0 shrink truncate font-display text-lg tracking-tight sm:text-2xl">
           LUXELOOM
         </Link>
 
         <MegaMenu />
 
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
           <SearchBar />
           <Link
             href="/favorites"
             aria-label="Favorites"
-            className="relative rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
+            className="relative rounded-full p-1.5 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground sm:p-2"
           >
             <Heart className="h-5 w-5" />
             <IconCount count={favoritesCount} />
@@ -68,7 +70,7 @@ export function Navbar() {
           <button
             onClick={openCartDrawer}
             aria-label="Cart"
-            className="relative rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
+            className="relative rounded-full p-1.5 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground sm:p-2"
           >
             <ShoppingBag className="h-5 w-5" />
             <IconCount count={cartCount} />

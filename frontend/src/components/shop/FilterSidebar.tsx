@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,10 @@ export interface ShopFilters {
 
 export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onChange: (f: ShopFilters) => void }) {
   const [categories, setCategories] = React.useState<Category[]>([]);
+  // A full-height filter panel pushes the entire product grid below the
+  // fold on a phone — collapse it behind a toggle there; sm and up it's
+  // always open (the toggle button itself is sm:hidden).
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   React.useEffect(() => {
     apiFetch<{ categories: Category[] }>("/api/categories").then((data) => setCategories(data.categories));
@@ -41,8 +46,26 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
     return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
   }
 
+  const activeCount =
+    (filters.category ? 1 : 0) +
+    filters.sizes.length +
+    filters.colors.length +
+    (filters.minPrice ? 1 : 0) +
+    (filters.maxPrice ? 1 : 0);
+
   return (
-    <aside className="w-full shrink-0 space-y-8 sm:w-56">
+    <aside className="w-full shrink-0 sm:w-56">
+      <button
+        type="button"
+        onClick={() => setMobileOpen((v) => !v)}
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-border px-4 text-sm font-medium sm:hidden"
+        aria-expanded={mobileOpen}
+      >
+        Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+        <ChevronDown className={cn("h-4 w-4 text-foreground/50 transition-transform", mobileOpen && "rotate-180")} />
+      </button>
+
+      <div className={cn("space-y-8", mobileOpen ? "mt-4" : "hidden", "sm:mt-0 sm:!block")}>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-foreground/50">Category</p>
         <div className="mt-3 space-y-2">
@@ -119,6 +142,7 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
             className="h-9 w-full rounded-lg border border-border bg-surface px-2 text-xs"
           />
         </div>
+      </div>
       </div>
     </aside>
   );

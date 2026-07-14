@@ -57,7 +57,8 @@ export default function AdminInvoicesPage() {
             GST output tax — {summary.month} ({summary.totals.invoiceCount} invoices, ₹
             {summary.totals.grossTotal.toLocaleString("en-IN")} gross)
           </p>
-          <table className="mt-3 w-full text-xs">
+          <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[480px] text-xs">
             <thead className="text-left uppercase tracking-wider text-foreground/40">
               <tr>
                 <th className="py-1">Rate</th>
@@ -86,6 +87,7 @@ export default function AdminInvoicesPage() {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

@@ -73,7 +73,7 @@ export function NotificationsBell() {
       <button
         onClick={openPanel}
         aria-label="Notifications"
-        className="relative rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
+        className="relative rounded-full p-1.5 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground sm:p-2"
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (
@@ -90,7 +90,8 @@ export function NotificationsBell() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full z-40 mt-3 w-80 rounded-2xl border border-border bg-surface p-2 shadow-2xl"
+            // Same viewport-clamping fix as SearchBar — see comment there.
+            className="fixed inset-x-4 top-16 z-40 rounded-2xl border border-border bg-surface p-2 shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-3 sm:w-80"
           >
             <p className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-foreground/50">Notifications</p>
             <div className="max-h-96 overflow-y-auto">

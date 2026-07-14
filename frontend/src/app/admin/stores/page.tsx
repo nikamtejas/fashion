@@ -190,7 +190,7 @@ export default function AdminStoresPage() {
                 </button>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-[10px] font-medium uppercase tracking-wider text-foreground/50">Capacity / slot</label>
                   <input

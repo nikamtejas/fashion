@@ -48,7 +48,7 @@ export function SearchBar() {
       <button
         aria-label="Search"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
+        className="rounded-full p-1.5 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground sm:p-2"
       >
         {open ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
       </button>
@@ -59,7 +59,12 @@ export function SearchBar() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full z-40 mt-3 w-80 rounded-2xl border border-border bg-surface p-3 shadow-2xl"
+            // Anchored to this trigger's own small container, which can sit
+            // anywhere in the icon row — a fixed w-80 panel positioned via
+            // `right-0` off a non-edge trigger can run off either side of a
+            // phone viewport. Below sm, pin it to the viewport instead;
+            // restore the original trigger-anchored layout from sm up.
+            className="fixed inset-x-4 top-16 z-40 rounded-2xl border border-border bg-surface p-3 shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-3 sm:w-80"
           >
             <input
               autoFocus

@@ -254,14 +254,14 @@ export default function OrderDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl">{order.orderNumber}</h1>
           <p className="mt-1 text-xs text-foreground/50">
             Placed {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant={order.status === "DELIVERED" ? "success" : "outline"}>{order.status.replaceAll("_", " ")}</Badge>
           <Button size="sm" variant="outline" magnetic={false} onClick={() => router.push(`/track/${order._id}`)}>
             Track order
@@ -287,7 +287,7 @@ export default function OrderDetailPage() {
       </div>
 
       {order.status === "PENDING_PAYMENT" && (
-        <div className="mt-6 flex items-center justify-between rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+        <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-amber-800 dark:text-amber-300">
             Payment pending — your items are reserved for a limited time.
           </p>

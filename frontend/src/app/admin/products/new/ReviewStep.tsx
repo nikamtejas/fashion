@@ -104,7 +104,7 @@ export function ReviewStep({
 
       <div>
         <h2 className="font-display text-lg">Sizes & colors</h2>
-        <div className="mt-3 grid grid-cols-2 gap-4">
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Sizes (comma-separated)" value={sizesInput} onChange={(e) => setSizesInput(e.target.value)} />
           <Input label="Colors (comma-separated)" value={colorsInput} onChange={(e) => setColorsInput(e.target.value)} />
         </div>
@@ -113,8 +113,8 @@ export function ReviewStep({
         </Button>
 
         {variants.length > 0 && (
-          <div className="mt-4 overflow-hidden rounded-xl border border-border">
-            <table className="w-full text-sm">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[420px] text-sm">
               <thead className="bg-surface text-left text-xs uppercase tracking-wider text-foreground/50">
                 <tr>
                   <th className="px-3 py-2">Size</th>

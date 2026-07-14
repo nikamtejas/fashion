@@ -73,7 +73,7 @@ export default function AdminOrdersPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search order # or email…"
-            className="h-10 w-56 rounded-lg border border-border bg-surface px-3 text-sm"
+            className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm sm:w-56"
           />
           <select
             value={status}

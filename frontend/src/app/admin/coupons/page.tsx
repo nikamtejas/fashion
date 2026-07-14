@@ -186,7 +186,7 @@ export default function AdminCouponsPage() {
             disabled={Boolean(editing)}
             onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium uppercase tracking-wider text-foreground/70">Type</label>
               <select
@@ -207,7 +207,7 @@ export default function AdminCouponsPage() {
               onChange={(e) => setForm((f) => ({ ...f, value: Number(e.target.value) }))}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {form.type === "PERCENTAGE" && (
               <Input
                 label="Max discount ₹ (optional)"
@@ -225,7 +225,7 @@ export default function AdminCouponsPage() {
               onChange={(e) => setForm((f) => ({ ...f, minOrderValue: Number(e.target.value) || 0 }))}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Input
               label="Global usage limit (optional)"
               type="number"

@@ -61,7 +61,7 @@ export default function AdminInventoryPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search products…"
-          className="h-10 w-64 rounded-lg border border-border bg-surface px-3 text-sm"
+          className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm sm:w-64"
         />
       </div>
 

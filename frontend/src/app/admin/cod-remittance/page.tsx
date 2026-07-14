@@ -274,7 +274,7 @@ export default function AdminCodRemittancePage() {
             onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))}
             placeholder="e.g. UTR2026071300123"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Input
               label="Amount received (₹)"
               type="number"

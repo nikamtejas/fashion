@@ -61,8 +61,8 @@ export function EmiWidget({ amount, variant = "full" }: { amount: number; varian
       </button>
 
       {open && (
-        <div className="border-t border-border px-4 py-3">
-          <table className="w-full text-xs">
+        <div className="overflow-x-auto border-t border-border px-4 py-3">
+          <table className="w-full min-w-[360px] text-xs">
             <thead className="text-left uppercase tracking-wider text-foreground/40">
               <tr>
                 <th className="py-1.5">Tenure</th>
