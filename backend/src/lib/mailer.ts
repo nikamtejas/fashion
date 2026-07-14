@@ -113,7 +113,9 @@ export async function sendOtpEmail(email: string, code: string) {
   await getTransporter().sendMail({
     from: process.env.EMAIL_FROM,
     to: email,
-    subject: `${code} is your LuxeLoom code`,
+    // The code itself never goes in the subject — subject lines show up in
+    // lock-screen previews and inbox lists without the email being opened.
+    subject: "Your LuxeLoom verification code",
     text: `${code} is your LuxeLoom verification code. It's valid for the next 10 minutes.\n\nDidn't request it? You can safely ignore this email — your account stays secure. We'll never ask you for this code by phone or message.`,
     html: renderBrandEmail({
       heading: "Here's your code",
