@@ -18,14 +18,17 @@ export function ShopClient({
   initialProducts = [],
   initialHasMore = true,
   initialCategory = null,
+  initialSub = null,
 }: {
   initialProducts?: ShopProduct[];
   initialHasMore?: boolean;
   initialCategory?: string | null;
+  initialSub?: string | null;
 }) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = React.useState<ShopFilters>({
     category: searchParams.get("category"),
+    sub: searchParams.get("sub"),
     sizes: [],
     colors: [],
     minPrice: "",
@@ -37,15 +40,38 @@ export function ShopClient({
   const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [loading, setLoading] = React.useState(false);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
-  // Server already fetched page 1 for this exact category/sort/page combo —
+  // Server already fetched page 1 for this exact category/sub/sort/page combo —
   // skip the redundant client-side re-fetch on mount.
-  const skipInitialFetch = React.useRef(initialProducts.length > 0 && searchParams.get("category") === initialCategory);
+  const skipInitialFetch = React.useRef(
+    initialProducts.length > 0 && searchParams.get("category") === initialCategory && searchParams.get("sub") === initialSub
+  );
+  // Navigating here from elsewhere (e.g. the MegaMenu) while already on
+  // /shop doesn't remount this component, so `filters` — only ever read
+  // from the URL once, on mount — goes stale until a hard refresh. Re-sync
+  // it whenever the URL's own category/sub change from outside this page
+  // (skip the first run: the state above already matches on mount).
+  const isFirstUrlSync = React.useRef(true);
+  React.useEffect(() => {
+    if (isFirstUrlSync.current) {
+      isFirstUrlSync.current = false;
+      return;
+    }
+    setFilters({
+      category: searchParams.get("category"),
+      sub: searchParams.get("sub"),
+      sizes: [],
+      colors: [],
+      minPrice: "",
+      maxPrice: "",
+    });
+  }, [searchParams]);
 
   const fetchPage = React.useCallback(
     async (pageNum: number, replace: boolean) => {
       setLoading(true);
       const params = new URLSearchParams();
       if (filters.category) params.set("category", filters.category);
+      if (filters.sub) params.set("sub", filters.sub);
       if (filters.sizes.length) params.set("size", filters.sizes.join(","));
       if (filters.colors.length) params.set("color", filters.colors.join(","));
       if (filters.minPrice) params.set("minPrice", filters.minPrice);

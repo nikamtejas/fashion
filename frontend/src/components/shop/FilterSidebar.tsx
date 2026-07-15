@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { SHOP_SUBCATEGORIES } from "@/lib/shopCategories";
 
 interface Category {
   _id: string;
@@ -25,6 +26,7 @@ const COLORS = [
 
 export interface ShopFilters {
   category: string | null;
+  sub: string | null;
   sizes: string[];
   colors: string[];
   minPrice: string;
@@ -48,6 +50,7 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
 
   const activeCount =
     (filters.category ? 1 : 0) +
+    (filters.sub ? 1 : 0) +
     filters.sizes.length +
     filters.colors.length +
     (filters.minPrice ? 1 : 0) +
@@ -70,7 +73,7 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
         <p className="text-xs font-semibold uppercase tracking-wider text-foreground/50">Category</p>
         <div className="mt-3 space-y-2">
           <button
-            onClick={() => onChange({ ...filters, category: null })}
+            onClick={() => onChange({ ...filters, category: null, sub: null })}
             className={cn("block text-sm", !filters.category ? "text-accent" : "text-foreground/70")}
           >
             All
@@ -78,7 +81,7 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
           {categories.map((c) => (
             <button
               key={c._id}
-              onClick={() => onChange({ ...filters, category: c.slug })}
+              onClick={() => onChange({ ...filters, category: c.slug, sub: filters.category === c.slug ? filters.sub : null })}
               className={cn("block text-sm", filters.category === c.slug ? "text-accent" : "text-foreground/70")}
             >
               {c.name}
@@ -86,6 +89,37 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
           ))}
         </div>
       </div>
+
+      {filters.category && SHOP_SUBCATEGORIES[filters.category] && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-foreground/50">Type</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => onChange({ ...filters, sub: null })}
+              className={cn(
+                "h-8 rounded-full border px-3 text-xs",
+                !filters.sub ? "border-ink bg-ink text-ivory dark:border-ivory dark:bg-ivory dark:text-ink" : "border-border text-foreground/70"
+              )}
+            >
+              All
+            </button>
+            {SHOP_SUBCATEGORIES[filters.category].map((s) => (
+              <button
+                key={s.value}
+                onClick={() => onChange({ ...filters, sub: s.value })}
+                className={cn(
+                  "h-8 rounded-full border px-3 text-xs",
+                  filters.sub === s.value
+                    ? "border-ink bg-ink text-ivory dark:border-ivory dark:bg-ivory dark:text-ink"
+                    : "border-border text-foreground/70"
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-foreground/50">Size</p>

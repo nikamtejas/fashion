@@ -50,6 +50,7 @@ router.get("/", async (req, res) => {
     limit = "20",
     page = "1",
     category,
+    sub,
     size,
     color,
     minPrice,
@@ -66,6 +67,9 @@ router.get("/", async (req, res) => {
     if (!cat) return res.json({ products: [], total: 0, page: 1, pages: 0 });
     query.category = cat._id;
   }
+  // MegaMenu subcategory links (e.g. ?category=men&sub=shirts) match against
+  // the product's tags — the sub slug is stored verbatim as one of the tags.
+  if (sub) query.tags = sub;
   if (size) query["variants.size"] = { $in: size.split(",") };
   if (color) query["variants.color"] = { $in: color.split(",") };
   if (minPrice || maxPrice) {

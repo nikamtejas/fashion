@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -11,6 +12,7 @@ export function ProfileMenu() {
   const { user, loading, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
+  const [imageFailed, setImageFailed] = React.useState(false);
 
   if (loading) return <div className="h-8 w-8 rounded-full bg-foreground/5" />;
 
@@ -27,6 +29,7 @@ export function ProfileMenu() {
   }
 
   const initials = (user.name ?? user.email ?? "?").charAt(0).toUpperCase();
+  const showImage = Boolean(user.image) && !imageFailed;
 
   async function handleLogout() {
     await logout();
@@ -39,9 +42,23 @@ export function ProfileMenu() {
       <DropdownMenu.Trigger asChild>
         <button
           aria-label="Account menu"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-ivory dark:bg-ivory dark:text-ink"
+          className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-ink text-xs font-semibold text-ivory dark:bg-ivory dark:text-ink"
         >
-          {initials}
+          {showImage ? (
+            // Avatar comes from an arbitrary external OAuth provider (e.g.
+            // Google) — a plain img avoids next/image's remote-pattern
+            // allowlist for a single small, already-optimized thumbnail.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.image}
+              alt=""
+              className="h-full w-full object-cover"
+              referrerPolicy="no-referrer"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            initials
+          )}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

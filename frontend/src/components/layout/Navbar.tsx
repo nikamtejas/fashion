@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Heart, ShoppingBag, Menu, X } from "lucide-react";
+import { Heart, ShoppingBag, Menu, X, ChevronDown } from "lucide-react";
 import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { MegaMenu } from "@/components/layout/MegaMenu";
 import { SearchBar } from "@/components/layout/SearchBar";
@@ -11,6 +11,7 @@ import { NotificationsBell } from "@/components/layout/NotificationsBell";
 import { useCartStore } from "@/store/cartStore";
 import { useFavoritesStore } from "@/store/favoritesStore";
 import { cn } from "@/lib/utils";
+import { SHOP_SUBCATEGORIES, SHOP_CATEGORY_LABELS } from "@/lib/shopCategories";
 
 function IconCount({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -25,6 +26,7 @@ export function Navbar() {
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [mobileExpanded, setMobileExpanded] = React.useState<string | null>(null);
   const cartCount = useCartStore((s) => s.count);
   const openCartDrawer = useCartStore((s) => s.openDrawer);
   const favoritesCount = useFavoritesStore((s) => s.count);
@@ -81,17 +83,43 @@ export function Navbar() {
       </div>
 
       {mobileOpen && (
-        <div className="border-t border-border px-4 py-4 md:hidden">
-          <nav className="flex flex-col gap-3">
-            {["Men", "Women", "Accessories", "Footwear"].map((label) => (
-              <Link
-                key={label}
-                href={`/shop?category=${label.toLowerCase()}`}
-                onClick={() => setMobileOpen(false)}
-                className="text-sm font-medium uppercase tracking-wide text-foreground/80"
-              >
-                {label}
-              </Link>
+        <div className="border-t border-border px-4 py-2 md:hidden">
+          <nav className="flex flex-col">
+            {Object.entries(SHOP_SUBCATEGORIES).map(([key, subs]) => (
+              <div key={key} className="border-b border-border py-1 last:border-none">
+                <div className="flex items-center justify-between">
+                  <Link
+                    href={`/shop?category=${key}`}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex-1 py-2.5 text-sm font-medium uppercase tracking-wide text-foreground/80"
+                  >
+                    {SHOP_CATEGORY_LABELS[key]}
+                  </Link>
+                  <button
+                    type="button"
+                    aria-label={`Toggle ${SHOP_CATEGORY_LABELS[key]} subcategories`}
+                    aria-expanded={mobileExpanded === key}
+                    onClick={() => setMobileExpanded((v) => (v === key ? null : key))}
+                    className="p-2.5 text-foreground/50"
+                  >
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", mobileExpanded === key && "rotate-180")} />
+                  </button>
+                </div>
+                {mobileExpanded === key && (
+                  <div className="flex flex-col gap-0.5 pb-2 pl-3">
+                    {subs.map((s) => (
+                      <Link
+                        key={s.value}
+                        href={`/shop?category=${key}&sub=${s.value}`}
+                        onClick={() => setMobileOpen(false)}
+                        className="py-2 text-sm text-foreground/60"
+                      >
+                        {s.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </nav>
         </div>

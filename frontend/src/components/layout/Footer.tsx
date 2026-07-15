@@ -18,12 +18,16 @@ const FOOTER_LINKS: Record<string, { label: string; href: string }[]> = {
     { label: "Our Story", href: "/about" },
     { label: "Lookbooks", href: "/lookbooks" },
     { label: "Store Locator", href: "/stores" },
-    { label: "Track Order", href: "/track" },
   ],
   Help: [
     { label: "Contact Us", href: "/contact" },
+    { label: "FAQ", href: "/faq" },
     { label: "Returns & Refunds", href: "/returns" },
-    { label: "Size Guide", href: "/size-guide" },
+  ],
+  Legal: [
+    { label: "Shipping Policy", href: "/shipping" },
+    { label: "Privacy Policy", href: "/privacy-policy" },
+    { label: "Terms of Service", href: "/terms" },
   ],
 };
 
@@ -50,7 +54,7 @@ export function Footer() {
   return (
     <footer className="mt-24 border-t border-border bg-surface">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid gap-12 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <div className="grid gap-12 md:grid-cols-[1.5fr_1fr_1fr_1fr_1fr]">
           <div>
             <p className="font-display text-2xl">LUXELOOM</p>
             <p className="mt-3 max-w-xs text-sm text-foreground/60">

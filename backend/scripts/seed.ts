@@ -12,7 +12,7 @@ cloudinary.config({
   secure: true,
 });
 
-function slugify(name: string) {
+export function slugify(name: string) {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -21,7 +21,7 @@ function slugify(name: string) {
 
 // Pricing comes from the real M3 engine so seeded products carry the same
 // full breakdown shape the admin wizard produces.
-function seedPricing({
+export function seedPricing({
   purchasePrice,
   marginPct,
   fixedCost,
@@ -41,7 +41,7 @@ function seedPricing({
   });
 }
 
-interface SeedProduct {
+export interface SeedProduct {
   name: string;
   category: "men" | "women" | "accessories" | "footwear";
   gender: "MEN" | "WOMEN" | "UNISEX";
@@ -56,14 +56,14 @@ interface SeedProduct {
   imageSeed: string;
 }
 
-const CATEGORIES: { name: string; slug: SeedProduct["category"] }[] = [
+export const CATEGORIES: { name: string; slug: SeedProduct["category"] }[] = [
   { name: "Men", slug: "men" },
   { name: "Women", slug: "women" },
   { name: "Accessories", slug: "accessories" },
   { name: "Footwear", slug: "footwear" },
 ];
 
-const PRODUCTS: SeedProduct[] = [
+export const PRODUCTS: SeedProduct[] = [
   // MEN
   {
     name: "Ink Black Oxford Shirt",
@@ -71,7 +71,7 @@ const PRODUCTS: SeedProduct[] = [
     gender: "MEN",
     description:
       "A tailored Oxford shirt in ink black, cut from breathable cotton with a clean spread collar. Wear it buttoned up for the office or open over a tee on weekends.",
-    tags: ["shirt", "formal", "cotton", "office"],
+    tags: ["shirts", "shirt", "formal", "cotton", "office"],
     sizes: ["S", "M", "L", "XL"],
     colors: [{ name: "Ink Black", hex: "#141414" }, { name: "White", hex: "#F7F5F0" }],
     purchasePrice: 650,
@@ -79,6 +79,66 @@ const PRODUCTS: SeedProduct[] = [
     fixedCost: 80,
     mrp: 1799,
     imageSeed: "oxford-shirt",
+  },
+  {
+    name: "Formal White Dress Shirt",
+    category: "men",
+    gender: "MEN",
+    description:
+      "A crisp white dress shirt cut from long-staple cotton poplin, built for boardrooms and black-tie alike.",
+    tags: ["shirts", "formal", "cotton", "office"],
+    sizes: ["S", "M", "L", "XL"],
+    colors: [{ name: "White", hex: "#F7F5F0" }, { name: "Sky Blue", hex: "#A9C4D8" }],
+    purchasePrice: 700,
+    marginPct: 34,
+    fixedCost: 80,
+    mrp: 1899,
+    imageSeed: "dress-shirt",
+  },
+  {
+    name: "Classic Crew Neck T-Shirt",
+    category: "men",
+    gender: "MEN",
+    description:
+      "A heavyweight cotton crew neck cut for a clean, considered fit — the tee that anchors every other layer.",
+    tags: ["tshirts", "cotton", "essential", "casual"],
+    sizes: ["S", "M", "L", "XL"],
+    colors: [{ name: "White", hex: "#F7F5F0" }, { name: "Black", hex: "#1B1B1B" }, { name: "Charcoal", hex: "#3A3A3A" }],
+    purchasePrice: 320,
+    marginPct: 40,
+    fixedCost: 55,
+    mrp: 999,
+    imageSeed: "crew-tshirt",
+  },
+  {
+    name: "Quilted Bomber Jacket",
+    category: "men",
+    gender: "MEN",
+    description:
+      "A lightly quilted bomber in a matte nylon shell, ribbed at the cuff and hem for a close, warm fit.",
+    tags: ["jackets", "bomber", "quilted", "layering"],
+    sizes: ["S", "M", "L", "XL"],
+    colors: [{ name: "Olive", hex: "#6B705C" }, { name: "Black", hex: "#1B1B1B" }],
+    purchasePrice: 1250,
+    marginPct: 32,
+    fixedCost: 100,
+    mrp: 3499,
+    imageSeed: "bomber-jacket",
+  },
+  {
+    name: "Denim Trucker Jacket",
+    category: "men",
+    gender: "MEN",
+    description:
+      "A rigid-denim trucker jacket, garment-washed for a lived-in fade and finished with contrast stitching.",
+    tags: ["jackets", "denim", "casual"],
+    sizes: ["S", "M", "L", "XL"],
+    colors: [{ name: "Indigo", hex: "#2C3E66" }, { name: "Black", hex: "#1B1B1B" }],
+    purchasePrice: 1100,
+    marginPct: 33,
+    fixedCost: 95,
+    mrp: 3199,
+    imageSeed: "trucker-jacket",
   },
   {
     name: "Sienna Chino Trousers",
@@ -147,7 +207,7 @@ const PRODUCTS: SeedProduct[] = [
     gender: "WOMEN",
     description:
       "A bias-cut silk slip dress that skims the body without clinging, finished with delicate adjustable straps.",
-    tags: ["dress", "silk", "evening"],
+    tags: ["dresses", "dress", "silk", "evening"],
     sizes: ["XS", "S", "M", "L"],
     colors: [{ name: "Ivory", hex: "#FAF7F2" }, { name: "Sienna", hex: "#C15B3C" }],
     purchasePrice: 1600,
@@ -177,7 +237,7 @@ const PRODUCTS: SeedProduct[] = [
     gender: "WOMEN",
     description:
       "A close-fit ribbed knit top with a soft sheen, cut long enough to tuck or wear loose over trousers and skirts alike.",
-    tags: ["top", "knitwear", "everyday"],
+    tags: ["tops", "top", "knitwear", "everyday"],
     sizes: ["XS", "S", "M", "L"],
     colors: [{ name: "Sage", hex: "#8A9A7E" }, { name: "Ivory", hex: "#FAF7F2" }],
     purchasePrice: 480,
@@ -216,6 +276,66 @@ const PRODUCTS: SeedProduct[] = [
     mrp: 2599,
     imageSeed: "pleated-skirt",
   },
+  {
+    name: "Embroidered Anarkali Kurta Set",
+    category: "women",
+    gender: "WOMEN",
+    description:
+      "A floor-length Anarkali kurta with hand-embroidered yoke detailing, paired with a matching dupatta for festive occasions.",
+    tags: ["ethnic", "kurta", "embroidered", "festive"],
+    sizes: ["S", "M", "L", "XL"],
+    colors: [{ name: "Sienna", hex: "#C15B3C" }, { name: "Emerald", hex: "#2F5D50" }],
+    purchasePrice: 1450,
+    marginPct: 36,
+    fixedCost: 110,
+    mrp: 4499,
+    imageSeed: "anarkali-kurta",
+  },
+  {
+    name: "Floral Wrap Midi Dress",
+    category: "women",
+    gender: "WOMEN",
+    description:
+      "A soft floral wrap dress in viscose crepe, tied at the waist and cut to move easily from desk to dinner.",
+    tags: ["dresses", "floral", "wrap", "summer"],
+    sizes: ["XS", "S", "M", "L"],
+    colors: [{ name: "Terracotta Floral", hex: "#B5583C" }, { name: "Sage Floral", hex: "#8A9A7E" }],
+    purchasePrice: 890,
+    marginPct: 35,
+    fixedCost: 90,
+    mrp: 2799,
+    imageSeed: "wrap-dress",
+  },
+  {
+    name: "Cropped Denim Jacket",
+    category: "women",
+    gender: "WOMEN",
+    description:
+      "A cropped denim jacket with a relaxed shoulder, finished with raw-edge cuffs — the layer that finishes everything.",
+    tags: ["outerwear", "denim", "cropped", "casual"],
+    sizes: ["XS", "S", "M", "L"],
+    colors: [{ name: "Light Wash", hex: "#7B93B5" }, { name: "Black", hex: "#1B1B1B" }],
+    purchasePrice: 980,
+    marginPct: 33,
+    fixedCost: 95,
+    mrp: 2999,
+    imageSeed: "cropped-denim-jacket",
+  },
+  {
+    name: "Satin Cami Top",
+    category: "women",
+    gender: "WOMEN",
+    description:
+      "A bias-cut satin camisole with adjustable straps — dress it up under a blazer or wear it alone on a warm evening.",
+    tags: ["tops", "satin", "cami", "evening"],
+    sizes: ["XS", "S", "M", "L"],
+    colors: [{ name: "Ivory", hex: "#FAF7F2" }, { name: "Black", hex: "#1B1B1B" }],
+    purchasePrice: 420,
+    marginPct: 38,
+    fixedCost: 65,
+    mrp: 1399,
+    imageSeed: "satin-cami",
+  },
   // ACCESSORIES
   {
     name: "Leather Tote Bag",
@@ -223,7 +343,7 @@ const PRODUCTS: SeedProduct[] = [
     gender: "UNISEX",
     description:
       "Full-grain leather tote with a structured base and interior zip pocket — built to age well, not fall apart.",
-    tags: ["bag", "leather", "tote"],
+    tags: ["bags", "bag", "leather", "tote"],
     sizes: ["One Size"],
     colors: [{ name: "Tan", hex: "#B08463" }, { name: "Black", hex: "#1B1B1B" }],
     purchasePrice: 1900,
@@ -237,7 +357,7 @@ const PRODUCTS: SeedProduct[] = [
     category: "accessories",
     gender: "UNISEX",
     description: "A hand-woven leather belt with a matte brass buckle — the kind that outlasts the trousers it holds up.",
-    tags: ["belt", "leather"],
+    tags: ["belts", "belt", "leather"],
     sizes: ["S", "M", "L"],
     colors: [{ name: "Brown", hex: "#5C3A21" }, { name: "Black", hex: "#1B1B1B" }],
     purchasePrice: 420,
@@ -251,7 +371,7 @@ const PRODUCTS: SeedProduct[] = [
     category: "accessories",
     gender: "UNISEX",
     description: "A 90cm silk twill scarf, hand-rolled at the edges, printed in a limited seasonal motif.",
-    tags: ["scarf", "silk", "print"],
+    tags: ["scarves", "scarf", "silk", "print"],
     sizes: ["One Size"],
     colors: [{ name: "Sienna Print", hex: "#C15B3C" }, { name: "Sage Print", hex: "#8A9A7E" }],
     purchasePrice: 380,
@@ -279,7 +399,7 @@ const PRODUCTS: SeedProduct[] = [
     category: "accessories",
     gender: "WOMEN",
     description: "A compact structured crossbody in saffiano-textured leather, sized for the essentials only.",
-    tags: ["bag", "crossbody", "leather"],
+    tags: ["bags", "bag", "crossbody", "leather"],
     sizes: ["One Size"],
     colors: [{ name: "Ivory", hex: "#FAF7F2" }, { name: "Black", hex: "#1B1B1B" }],
     purchasePrice: 1100,
@@ -287,6 +407,76 @@ const PRODUCTS: SeedProduct[] = [
     fixedCost: 95,
     mrp: 3499,
     imageSeed: "crossbody-bag",
+  },
+  {
+    name: "Layered Gold Chain Necklace",
+    category: "accessories",
+    gender: "WOMEN",
+    description: "Two fine gold-plated chains layered on a single clasp — worn together or split across two looks.",
+    tags: ["jewelry", "necklace", "gold"],
+    sizes: ["One Size"],
+    colors: [{ name: "Gold", hex: "#C9A24B" }],
+    purchasePrice: 280,
+    marginPct: 44,
+    fixedCost: 40,
+    mrp: 999,
+    imageSeed: "gold-necklace",
+  },
+  {
+    name: "Reversible Leather Belt",
+    category: "accessories",
+    gender: "UNISEX",
+    description: "A two-tone reversible belt — black on one side, tan on the other, one buckle for both.",
+    tags: ["belts", "leather", "reversible"],
+    sizes: ["S", "M", "L"],
+    colors: [{ name: "Black/Tan", hex: "#1B1B1B" }],
+    purchasePrice: 460,
+    marginPct: 37,
+    fixedCost: 60,
+    mrp: 1399,
+    imageSeed: "reversible-belt",
+  },
+  {
+    name: "Wool Blend Neck Scarf",
+    category: "accessories",
+    gender: "UNISEX",
+    description: "A soft wool-blend scarf in a brushed finish, generously sized for a proper wrap on cold mornings.",
+    tags: ["scarves", "wool", "winter"],
+    sizes: ["One Size"],
+    colors: [{ name: "Charcoal", hex: "#3A3A3A" }, { name: "Camel", hex: "#C19A6B" }],
+    purchasePrice: 340,
+    marginPct: 40,
+    fixedCost: 50,
+    mrp: 1199,
+    imageSeed: "wool-scarf",
+  },
+  {
+    name: "Structured Leather Handbag",
+    category: "accessories",
+    gender: "WOMEN",
+    description: "A boxy top-handle handbag in vegetable-tanned leather, with a detachable strap for hands-free days.",
+    tags: ["bags", "handbag", "leather"],
+    sizes: ["One Size"],
+    colors: [{ name: "Tan", hex: "#B08463" }, { name: "Black", hex: "#1B1B1B" }],
+    purchasePrice: 2100,
+    marginPct: 39,
+    fixedCost: 130,
+    mrp: 6499,
+    imageSeed: "structured-handbag",
+  },
+  {
+    name: "Classic Aviator Sunglasses",
+    category: "accessories",
+    gender: "UNISEX",
+    description: "Teardrop aviators with polarized lenses on a thin metal frame — the shape that never goes out of style.",
+    tags: ["sunglasses", "eyewear", "summer"],
+    sizes: ["One Size"],
+    colors: [{ name: "Gold/Green", hex: "#C9A24B" }, { name: "Black/Grey", hex: "#1B1B1B" }],
+    purchasePrice: 380,
+    marginPct: 42,
+    fixedCost: 55,
+    mrp: 1499,
+    imageSeed: "aviator-sunglasses",
   },
   // FOOTWEAR
   {
@@ -359,6 +549,76 @@ const PRODUCTS: SeedProduct[] = [
     mrp: 5999,
     imageSeed: "formal-oxfords",
   },
+  {
+    name: "Canvas Low-Top Sneakers",
+    category: "footwear",
+    gender: "UNISEX",
+    description: "Everyday low-top sneakers in washed canvas with a cushioned insole — built for miles, not just looks.",
+    tags: ["sneakers", "canvas", "casual"],
+    sizes: ["6", "7", "8", "9", "10", "11"],
+    colors: [{ name: "Natural", hex: "#E4D9C4" }, { name: "Navy", hex: "#2C3E66" }],
+    purchasePrice: 780,
+    marginPct: 36,
+    fixedCost: 85,
+    mrp: 2299,
+    imageSeed: "canvas-sneakers",
+  },
+  {
+    name: "Leather Derby Shoes",
+    category: "footwear",
+    gender: "MEN",
+    description: "Open-laced Derby shoes in polished calfskin, Goodyear-welted for a sole that can be replaced, not replaced.",
+    tags: ["formal", "derby", "leather"],
+    sizes: ["6", "7", "8", "9", "10", "11"],
+    colors: [{ name: "Black", hex: "#1B1B1B" }, { name: "Brown", hex: "#5C3A21" }],
+    purchasePrice: 1950,
+    marginPct: 31,
+    fixedCost: 125,
+    mrp: 5499,
+    imageSeed: "derby-shoes",
+  },
+  {
+    name: "Strappy Flat Sandals",
+    category: "footwear",
+    gender: "WOMEN",
+    description: "Slim crossover straps on a flat leather sole — the sandal that goes with everything in your closet.",
+    tags: ["sandals", "flats", "leather"],
+    sizes: ["4", "5", "6", "7", "8"],
+    colors: [{ name: "Tan", hex: "#B08463" }, { name: "Black", hex: "#1B1B1B" }],
+    purchasePrice: 620,
+    marginPct: 37,
+    fixedCost: 75,
+    mrp: 1999,
+    imageSeed: "flat-sandals",
+  },
+  {
+    name: "Leather Ankle Boots",
+    category: "footwear",
+    gender: "WOMEN",
+    description: "Block-heeled ankle boots in soft grain leather with a side zip — built for city pavements, not just photos.",
+    tags: ["boots", "leather", "ankle"],
+    sizes: ["4", "5", "6", "7", "8"],
+    colors: [{ name: "Black", hex: "#1B1B1B" }, { name: "Tan", hex: "#B08463" }],
+    purchasePrice: 1650,
+    marginPct: 33,
+    fixedCost: 110,
+    mrp: 4699,
+    imageSeed: "ankle-boots",
+  },
+  {
+    name: "Suede Desert Boots",
+    category: "footwear",
+    gender: "MEN",
+    description: "Two-eyelet desert boots in brushed suede on a crepe sole — the boot that quietly goes with everything.",
+    tags: ["boots", "suede", "casual"],
+    sizes: ["6", "7", "8", "9", "10", "11"],
+    colors: [{ name: "Sand", hex: "#D8C3A5" }, { name: "Chocolate", hex: "#5C3A21" }],
+    purchasePrice: 1500,
+    marginPct: 32,
+    fixedCost: 105,
+    mrp: 4299,
+    imageSeed: "desert-boots",
+  },
 ];
 
 const STORE_LOCATIONS = [
@@ -401,7 +661,7 @@ const STORE_HOURS = (["MON", "TUE", "WED", "THU", "FRI", "SAT"] as const).map((d
 }));
 const SUNDAY_HOURS = { day: "SUN" as const, open: "11:00", close: "19:00" };
 
-async function uploadPlaceholder(seed: string, folder: string, publicId: string) {
+export async function uploadPlaceholder(seed: string, folder: string, publicId: string) {
   const remoteUrl = `https://picsum.photos/seed/${seed}/900/1200`;
   const result = await cloudinary.uploader.upload(remoteUrl, {
     folder,
@@ -493,7 +753,12 @@ async function seed() {
   await mongoose.disconnect();
 }
 
-seed().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only auto-run when executed directly (`npm run seed`) — guarded so other
+// scripts can safely import PRODUCTS/CATEGORIES/helpers without triggering
+// a full destructive reset as a side effect of the import.
+if (require.main === module) {
+  seed().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
