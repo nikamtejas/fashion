@@ -1,23 +1,20 @@
-/** NEXT_PUBLIC_API_URL may list several origins (comma-separated) so the same
- * build works on localhost and over the LAN (phone testing). The backend must
- * be reached on the same host the page was opened on, or its CORS/cookie
- * origin won't match — so pick the entry matching the browser's hostname. */
+/** NEXT_PUBLIC_API_URL may list several origins (comma-separated) — only
+ * used for SERVER-side fetches (SSR/RSC), where there's no browser origin
+ * to worry about and the Next.js server just needs to reach the backend
+ * directly. */
 const API_URLS = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000")
   .split(",")
   .map((url) => url.trim().replace(/\/+$/, ""))
   .filter(Boolean);
 
 function pickApiUrl(): string {
-  if (typeof window !== "undefined") {
-    const match = API_URLS.find((url) => {
-      try {
-        return new URL(url).hostname === window.location.hostname;
-      } catch {
-        return false;
-      }
-    });
-    if (match) return match;
-  }
+  // Client-side: always go through the same-origin /api proxy (see
+  // next.config.ts rewrites), which Next's server forwards to the backend.
+  // This makes every browser request same-origin as the frontend — works
+  // over localhost, a LAN IP, or https (an https page can't fetch a plain
+  // http API directly; same-origin sidesteps that entirely) — instead of
+  // guessing which configured backend URL matches the current hostname.
+  if (typeof window !== "undefined") return "";
   return API_URLS[0];
 }
 

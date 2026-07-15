@@ -76,7 +76,10 @@ router.get("/", async (req, res) => {
       ]),
       Order.find().sort({ createdAt: -1 }).limit(6).populate("user", "email").select("orderNumber status pricing.total createdAt user").lean(),
       Product.find({ status: "PUBLISHED", "variants.stock": { $lt: 5 } }).select("name slug variants").limit(20).lean(),
-      PickupAppointment.countDocuments({ status: { $in: ["BOOKED", "READY"] } }),
+      // type: "PICKUP" — otherwise this double-counts against the separate
+      // pendingRefunds stat, since in-store return drop-offs live in the
+      // same collection.
+      PickupAppointment.countDocuments({ type: "PICKUP", status: { $in: ["BOOKED", "READY"] } }),
       RefundRequest.countDocuments({ status: { $in: ["REQUESTED", "APPROVED", "ITEM_PICKED_UP", "RECEIVED"] } }),
     ]);
 

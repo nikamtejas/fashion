@@ -60,7 +60,11 @@ export function Footer() {
             <p className="mt-3 max-w-xs text-sm text-foreground/60">
               Editorial fashion for the modern Indian wardrobe — considered pieces, honest pricing.
             </p>
-            <form onSubmit={handleSubscribe} className="mt-6 flex max-w-sm gap-2">
+            {/* suppressHydrationWarning: some browser extensions (password
+                managers, Grammarly-style form scanners) inject attributes
+                like __gcruniqueid onto forms/inputs before React hydrates —
+                harmless, but otherwise logs a hydration mismatch warning. */}
+            <form onSubmit={handleSubscribe} className="mt-6 flex max-w-sm gap-2" suppressHydrationWarning>
               <Input
                 type="email"
                 required
@@ -68,6 +72,7 @@ export function Footer() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="h-11"
+                suppressHydrationWarning
               />
               <Button type="submit" size="sm" disabled={loading} magnetic={false}>
                 {loading ? "…" : "Subscribe"}

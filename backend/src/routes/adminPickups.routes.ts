@@ -22,7 +22,10 @@ router.get("/", async (req, res) => {
   const dayStart = new Date(`${date}T00:00:00`);
   const dayEnd = new Date(`${date}T23:59:59`);
 
-  const query: Record<string, unknown> = { date: { $gte: dayStart, $lte: dayEnd } };
+  // type: "PICKUP" — the same collection also holds RETURN drop-off
+  // appointments (in-store returns), which must never surface in the
+  // purchase-pickup agenda or be handed over as if they were one.
+  const query: Record<string, unknown> = { type: "PICKUP", date: { $gte: dayStart, $lte: dayEnd } };
   if (storeId) query.storeLocation = storeId;
 
   const appointments = await PickupAppointment.find(query)
@@ -37,6 +40,7 @@ router.get("/", async (req, res) => {
 router.post("/:id/ready", async (req, res) => {
   const appt = await PickupAppointment.findById(req.params.id);
   if (!appt) return res.status(404).json({ error: "Appointment not found" });
+  if (appt.type !== "PICKUP") return res.status(400).json({ error: "This is a return drop-off, not a pickup" });
   if (appt.status !== "BOOKED") return res.status(400).json({ error: `Can't mark a ${appt.status} appointment ready` });
 
   appt.status = "READY";
@@ -67,7 +71,10 @@ router.post("/:id/ready", async (req, res) => {
  * scanning any pickup QR — order, items, customer, payment state. */
 router.get("/lookup/:qrCode", async (req, res) => {
   const qrCode = req.params.qrCode.toUpperCase().trim();
-  const appt = await PickupAppointment.findOne({ qrCode }).populate("storeLocation", "name city").lean();
+  // Scoped to type: "PICKUP" — a return drop-off code must not resolve here
+  // and get handed over as a purchase pickup (see the /:id/complete guard
+  // below for why that would corrupt the order and payment state).
+  const appt = await PickupAppointment.findOne({ qrCode, type: "PICKUP" }).populate("storeLocation", "name city").lean();
   if (!appt) return res.status(404).json({ error: "No pickup appointment matches this code" });
 
   const order = await Order.findById(appt.order)
@@ -109,6 +116,7 @@ router.get("/lookup/:qrCode", async (req, res) => {
 router.post("/:id/handover-otp", async (req, res) => {
   const appt = await PickupAppointment.findById(req.params.id).lean();
   if (!appt) return res.status(404).json({ error: "Appointment not found" });
+  if (appt.type !== "PICKUP") return res.status(400).json({ error: "This is a return drop-off, not a pickup" });
   if (!["BOOKED", "READY"].includes(appt.status)) {
     return res.status(400).json({ error: `This appointment is ${appt.status}` });
   }
@@ -134,6 +142,7 @@ router.post("/:id/complete", async (req, res) => {
 
   const appt = await PickupAppointment.findById(req.params.id);
   if (!appt) return res.status(404).json({ error: "Appointment not found" });
+  if (appt.type !== "PICKUP") return res.status(400).json({ error: "This is a return drop-off, not a pickup" });
   if (!["BOOKED", "READY"].includes(appt.status)) {
     return res.status(400).json({ error: `This appointment is ${appt.status}` });
   }

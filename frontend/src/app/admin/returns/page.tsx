@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, XCircle, ScanLine, Banknote } from "lucide-react";
+import { CheckCircle2, XCircle, ScanLine, Banknote, Camera, Keyboard } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { QrCameraScanner } from "@/components/admin/QrCameraScanner";
 
 interface AdminReturn {
   _id: string;
@@ -32,6 +33,7 @@ export default function AdminReturnsPage() {
   const [qcTarget, setQcTarget] = React.useState<AdminReturn | null>(null);
   const [qcCode, setQcCode] = React.useState("");
   const [qcNotes, setQcNotes] = React.useState("");
+  const [qcCamera, setQcCamera] = React.useState(true);
 
   const load = React.useCallback(() => {
     apiFetch<{ returns: AdminReturn[] }>("/api/admin/returns").then((data) => setReturns(data.returns));
@@ -93,7 +95,18 @@ export default function AdminReturnsPage() {
                   </>
                 )}
                 {r.method === "STORE" && ["REQUESTED", "APPROVED"].includes(r.status) && (
-                  <Button size="sm" variant="outline" magnetic={false} disabled={busy} onClick={() => setQcTarget(r)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    magnetic={false}
+                    disabled={busy}
+                    onClick={() => {
+                      setQcTarget(r);
+                      setQcCamera(true);
+                      setQcCode("");
+                      setQcNotes("");
+                    }}
+                  >
                     <ScanLine className="h-3.5 w-3.5" /> Scan & QC
                   </Button>
                 )}
@@ -131,7 +144,23 @@ export default function AdminReturnsPage() {
         description="Scan the customer's return QR, inspect the item, then pass or fail."
       >
         <div className="space-y-3">
-          <Input label="Return code (from QR)" autoFocus value={qcCode} onChange={(e) => setQcCode(e.target.value.toUpperCase())} />
+          {qcCamera ? (
+            <div>
+              <QrCameraScanner onScan={(text) => { setQcCode(text.trim().toUpperCase()); setQcCamera(false); }} />
+              <Button variant="outline" magnetic={false} size="sm" className="mt-2 w-full" onClick={() => setQcCamera(false)}>
+                <Keyboard className="h-3.5 w-3.5" /> Type the code instead
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <Input label="Return code (from QR)" autoFocus value={qcCode} onChange={(e) => setQcCode(e.target.value.toUpperCase())} />
+              </div>
+              <Button type="button" variant="outline" magnetic={false} onClick={() => setQcCamera(true)}>
+                <Camera className="h-4 w-4" /> Scan
+              </Button>
+            </div>
+          )}
           <Input label="Notes (optional)" value={qcNotes} onChange={(e) => setQcNotes(e.target.value)} />
           <div className="flex gap-3">
             <Button

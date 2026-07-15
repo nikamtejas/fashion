@@ -51,16 +51,22 @@ export async function sweepAppointments(now = new Date()) {
 
     for (const kind of due) {
       if (user && order && store) {
+        const when = kind === "24H" ? "tomorrow" : "in 2 hours";
+        const isReturn = appt.type === "RETURN";
         await sendEmail(
           user.email,
-          `Your LuxeLoom pickup is ${kind === "24H" ? "tomorrow" : "in 2 hours"} — ${order.orderNumber}`,
+          `Your LuxeLoom ${isReturn ? "return drop-off" : "pickup"} is ${when} — ${order.orderNumber}`,
           [
-            `We've set your pieces aside and can't wait to see you.`,
+            isReturn
+              ? `Just a reminder to drop off your return — we'll take it from there.`
+              : `We've set your pieces aside and can't wait to see you.`,
             ``,
             `Where: ${store.name}, ${store.address}`,
             `When: ${appt.date.toISOString().slice(0, 10)}, between ${appt.timeSlot}`,
             ``,
-            `Just show the QR code from your order page and a photo ID at the counter. Running late? No worries — your order stays safely reserved for you.`,
+            isReturn
+              ? `Just show the QR code from your order page and a photo ID at the counter. Running late? No worries — your slot stays reserved.`
+              : `Just show the QR code from your order page and a photo ID at the counter. Running late? No worries — your order stays safely reserved for you.`,
           ].join("\n"),
           { heading: kind === "24H" ? "See you tomorrow" : "See you in a couple of hours" }
         );
