@@ -36,8 +36,6 @@ export function ShopClient({
   });
   const [sort, setSort] = React.useState("new");
   const [products, setProducts] = React.useState<ShopProduct[]>(initialProducts);
-  const [page, setPage] = React.useState(1);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [loading, setLoading] = React.useState(false);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
   // Server already fetched page 1 for this exact category/sub/sort/page combo —
@@ -66,8 +64,22 @@ export function ShopClient({
     });
   }, [searchParams]);
 
+  // React's `loading` state is async/batched, so it can't reliably gate
+  // against two fetches firing before the first one's setState has
+  // committed (IntersectionObserver re-fires its callback with the current
+  // intersection state every time it's re-attached, which happened on every
+  // page/hasMore/loading change here — a fresh page could get appended
+  // twice, duplicating every item on it, and React keys on product id, so
+  // that surfaced as a duplicate-key warning). A ref is synchronous and
+  // closes that race regardless of render timing.
+  const fetchingRef = React.useRef(false);
+  const pageRef = React.useRef(1);
+  const hasMoreRef = React.useRef(initialHasMore);
+
   const fetchPage = React.useCallback(
     async (pageNum: number, replace: boolean) => {
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
       setLoading(true);
       const params = new URLSearchParams();
       if (filters.category) params.set("category", filters.category);
@@ -83,10 +95,11 @@ export function ShopClient({
       try {
         const data = await apiFetch<ProductsResponse>(`/api/products?${params.toString()}`);
         setProducts((prev) => (replace ? data.products : [...prev, ...data.products]));
-        setHasMore(data.hasMore);
-        setPage(pageNum);
+        pageRef.current = pageNum;
+        hasMoreRef.current = data.hasMore;
       } finally {
         setLoading(false);
+        fetchingRef.current = false;
       }
     },
     [filters, sort]
@@ -105,20 +118,25 @@ export function ShopClient({
     fetchPage(1, true);
   }, [fetchPage]);
 
+  // A single observer for the component's lifetime — reading hasMore/page
+  // via refs instead of depending on that state means it's never torn down
+  // and re-attached on every fetch, which used to re-trigger its callback
+  // (a freshly-observed element reports its current intersection state
+  // immediately) as a second, racing fetch of the same page.
   React.useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          fetchPage(page + 1, false);
+        if (entries[0].isIntersecting && hasMoreRef.current && !fetchingRef.current) {
+          fetchPage(pageRef.current + 1, false);
         }
       },
       { rootMargin: "400px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [fetchPage, hasMore, loading, page]);
+  }, [fetchPage]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
