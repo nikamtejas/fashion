@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ShoppingBag } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { cachedApiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/Button";
@@ -37,7 +37,9 @@ export default function LookbooksPage() {
   const [addingId, setAddingId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    apiFetch<{ lookbooks: Look[] }>("/api/lookbooks").then((d) => setLooks(d.lookbooks));
+    // Lookbook curation barely changes; a short cache avoids re-fetching on
+    // every visit while still picking up stock/price updates within a minute.
+    cachedApiFetch<{ lookbooks: Look[] }>("/api/lookbooks", 60_000).then((d) => setLooks(d.lookbooks));
   }, []);
 
   async function addLook(look: Look) {

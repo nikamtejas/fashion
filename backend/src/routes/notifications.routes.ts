@@ -6,8 +6,12 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/", async (req, res) => {
-  const notifications = await Notification.find({ user: req.user!.uid }).sort({ createdAt: -1 }).limit(30).lean();
-  const unread = await Notification.countDocuments({ user: req.user!.uid, read: false });
+  // Polled frequently by the navbar bell — the two queries are independent,
+  // so run them concurrently instead of one network round trip at a time.
+  const [notifications, unread] = await Promise.all([
+    Notification.find({ user: req.user!.uid }).sort({ createdAt: -1 }).limit(30).lean(),
+    Notification.countDocuments({ user: req.user!.uid, read: false }),
+  ]);
   res.json({ notifications, unread });
 });
 

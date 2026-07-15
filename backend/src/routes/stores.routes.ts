@@ -137,30 +137,41 @@ router.get("/:id/slots", async (req, res) => {
   const sameDayReadyHours = config.sameDayReadyHours ?? DEFAULT_PICKUP_CONFIG.sameDayReadyHours;
 
   const now = new Date();
-  const days: { date: string; slots: { label: string; start: string; end: string; remaining: number; available: boolean; sameDayReady?: string }[] }[] = [];
-
-  for (let d = 0; d < 7; d++) {
+  // Precompute all 7 local-midnight boundaries first so a single aggregate
+  // can cover the whole range — was 7 sequential round trips (one per day),
+  // now 1. Grouping by the raw stored `$date` (not a reformatted date
+  // string) and matching on getTime() avoids any UTC-vs-local skew between
+  // the aggregation and the `dayStart` values built the same way as before.
+  const dayInfo = Array.from({ length: 7 }, (_, d) => {
     const day = new Date(now);
     day.setDate(now.getDate() + d);
     const dateStr = day.toISOString().slice(0, 10);
+    return {
+      dateStr,
+      dayStart: new Date(`${dateStr}T00:00:00`),
+      dayEnd: new Date(`${dateStr}T23:59:59`),
+    };
+  });
 
-    const dayStart = new Date(`${dateStr}T00:00:00`);
-    const dayEnd = new Date(`${dateStr}T23:59:59`);
-    const booked = await PickupAppointment.aggregate([
-      {
-        $match: {
-          storeLocation: store._id,
-          date: { $gte: dayStart, $lte: dayEnd },
-          status: { $in: ["BOOKED", "READY"] },
-        },
+  const booked = await PickupAppointment.aggregate([
+    {
+      $match: {
+        storeLocation: store._id,
+        date: { $gte: dayInfo[0].dayStart, $lte: dayInfo[dayInfo.length - 1].dayEnd },
+        status: { $in: ["BOOKED", "READY"] },
       },
-      { $group: { _id: "$timeSlot", count: { $sum: 1 } } },
-    ]);
-    const bookedMap = new Map(booked.map((b) => [b._id as string, b.count as number]));
+    },
+    { $group: { _id: { date: "$date", timeSlot: "$timeSlot" }, count: { $sum: 1 } } },
+  ]);
+  const bookedMap = new Map<string, number>();
+  for (const b of booked) {
+    bookedMap.set(`${new Date(b._id.date).getTime()}|${b._id.timeSlot}`, b.count as number);
+  }
 
+  const days = dayInfo.map(({ dateStr, dayStart }, d) => {
     const slots = windows.map((w) => {
       const label = `${w.start}-${w.end}`;
-      const remaining = Math.max(0, capacity - (bookedMap.get(label) ?? 0));
+      const remaining = Math.max(0, capacity - (bookedMap.get(`${dayStart.getTime()}|${label}`) ?? 0));
       const slotStart = new Date(`${dateStr}T${w.start}:00`);
       const isToday = d === 0;
       const readyBy = new Date(now.getTime() + sameDayReadyHours * 60 * 60 * 1000);
@@ -174,9 +185,8 @@ router.get("/:id/slots", async (req, res) => {
         ...(isToday && remaining > 0 && timeOk ? { sameDayReady: `Ready in ${sameDayReadyHours} hours` } : {}),
       };
     });
-
-    days.push({ date: dateStr, slots });
-  }
+    return { date: dateStr, slots };
+  });
 
   res.json({ storeId: String(store._id), days });
 });

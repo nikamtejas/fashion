@@ -29,8 +29,18 @@ router.get("/", async (req, res) => {
   const orderQuery: Record<string, unknown> = { status: { $nin: ["PENDING_PAYMENT", "CANCELLED"] } };
   if (range) orderQuery.createdAt = { $gte: range.from, $lt: range.to };
   const orders = await Order.find(orderQuery).select("_id").lean();
-  for (const o of orders) {
-    await ensureInvoiceForOrder(String(o._id)).catch(() => {});
+
+  // Backfill invoices for orders that predate the invoicing engine. The
+  // "does one already exist" check used to run once per order (every page
+  // load, forever) — batch it into a single $in query, and only create the
+  // few actually missing, in parallel rather than one at a time.
+  const orderIds = orders.map((o) => String(o._id));
+  const existingInvoiceOrderIds = new Set(
+    (await Invoice.find({ order: { $in: orderIds } }).select("order").lean()).map((inv) => String(inv.order))
+  );
+  const missingOrderIds = orderIds.filter((id) => !existingInvoiceOrderIds.has(id));
+  if (missingOrderIds.length > 0) {
+    await Promise.all(missingOrderIds.map((id) => ensureInvoiceForOrder(id).catch(() => {})));
   }
 
   const invQuery: Record<string, unknown> = {};

@@ -63,18 +63,23 @@ router.post("/bulk-status", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Pick orders and a status" });
 
   if (parsed.data.status === "CANCELLED") {
+    // Each order needs its own transaction, but the orders are independent
+    // of each other — run them concurrently instead of one at a time so
+    // wall-clock time is the slowest single cancellation, not the sum of all.
+    const settled = await Promise.allSettled(
+      parsed.data.ids.map((id) => cancelOrder(id, { reason: "Cancelled by admin", cancelledBy: "ADMIN" }))
+    );
     let updated = 0;
     const errors: string[] = [];
-    for (const id of parsed.data.ids) {
-      try {
-        await cancelOrder(id, { reason: "Cancelled by admin", cancelledBy: "ADMIN" });
+    settled.forEach((result, i) => {
+      if (result.status === "fulfilled") {
         updated++;
-      } catch (err) {
-        errors.push(err instanceof HttpError ? err.message : "Unknown error");
+      } else {
+        errors.push(result.reason instanceof HttpError ? result.reason.message : "Unknown error");
         // eslint-disable-next-line no-console
-        console.error(`bulk-cancel failed for order ${id}:`, err);
+        console.error(`bulk-cancel failed for order ${parsed.data.ids[i]}:`, result.reason);
       }
-    }
+    });
     return res.json({ updated, errors: errors.length ? errors : undefined });
   }
 
@@ -89,21 +94,25 @@ router.post("/bulk-status", async (req, res) => {
   res.json({ updated: result.modifiedCount });
 
   // Customer notifications after responding — a mail hiccup shouldn't fail
-  // the admin action.
-  for (const o of affected) {
-    if (o.status === parsed.data.status) continue;
-    try {
-      if (parsed.data.status === "DELIVERED") {
-        await sendDeliveredEmail(String(o._id));
-      } else {
-        const copy = BULK_STATUS_COPY[parsed.data.status];
-        if (copy) await notifyUser(String(o.user), copy.title(o.orderNumber, o.items), copy.body, `/account/orders/${o._id}`);
-      }
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(`bulk-status notification failed for ${o.orderNumber}:`, err);
-    }
-  }
+  // the admin action. Independent per order, so send them concurrently
+  // rather than waiting on each one's mail round trip in turn.
+  await Promise.all(
+    affected
+      .filter((o) => o.status !== parsed.data.status)
+      .map(async (o) => {
+        try {
+          if (parsed.data.status === "DELIVERED") {
+            await sendDeliveredEmail(String(o._id));
+          } else {
+            const copy = BULK_STATUS_COPY[parsed.data.status];
+            if (copy) await notifyUser(String(o.user), copy.title(o.orderNumber, o.items), copy.body, `/account/orders/${o._id}`);
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error(`bulk-status notification failed for ${o.orderNumber}:`, err);
+        }
+      })
+  );
 });
 
 const notesSchema = z.object({ notes: z.string().max(2000) });

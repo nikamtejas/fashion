@@ -3,7 +3,7 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { Truck, Store as StoreIcon, MapPin, LocateFixed, CheckCircle2, Clock } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, cachedApiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
@@ -58,7 +58,7 @@ export function DeliveryStep({
     if (method === "PICKUP" && stores === null) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (/^\d{6}$/.test(pincode)) findStores(`pincode=${pincode}`);
-      apiFetch<{ stores: NearbyStore[] }>(`/api/stores`).then((d) => setAllStores(d.stores as NearbyStore[]));
+      cachedApiFetch<{ stores: NearbyStore[] }>(`/api/stores`, 120_000).then((d) => setAllStores(d.stores as NearbyStore[]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [method]);

@@ -106,15 +106,10 @@ export async function evaluateCoupon(coupon: CouponDoc, ctx: CouponCheckContext)
   return { discount: round2(discount) };
 }
 
-/**
- * Evaluates a coupon against the user's current cart contents, with the
- * real per-item restriction math (categories/products). Used by the apply
- * endpoint and the "available coupons" listing.
- */
-export async function evaluateCouponForUser(
-  userId: string,
-  coupon: CouponDoc
-): Promise<{ discount: number } | { reason: string }> {
+/** Cart-derived numbers every coupon check needs — split out so evaluating
+ * several coupons against the same cart (the "available coupons" listing)
+ * fetches the cart and its products exactly once, not once per coupon. */
+async function buildCouponCheckBase(userId: string): Promise<Pick<CouponCheckContext, "subtotal" | "eligibleSubtotal">> {
   const cart = await getOrCreateCart(userId);
   const productIds = [...new Set(cart.items.map((l) => String(l.product)))];
   const products = await Product.find({ _id: { $in: productIds }, status: "PUBLISHED" }).lean();
@@ -131,8 +126,7 @@ export async function evaluateCouponForUser(
     lineTotals.push({ productId: String(product._id), category: String(product.category), lineTotal });
   }
 
-  return evaluateCoupon(coupon, {
-    userId,
+  return {
     subtotal,
     eligibleSubtotal: (r) => {
       const catSet = new Set(r.applicableCategories.map(String));
@@ -147,7 +141,35 @@ export async function evaluateCouponForUser(
         )
       );
     },
-  });
+  };
+}
+
+/**
+ * Evaluates a coupon against the user's current cart contents, with the
+ * real per-item restriction math (categories/products). Used by the apply
+ * endpoint (a single coupon).
+ */
+export async function evaluateCouponForUser(
+  userId: string,
+  coupon: CouponDoc
+): Promise<{ discount: number } | { reason: string }> {
+  const base = await buildCouponCheckBase(userId);
+  return evaluateCoupon(coupon, { userId, ...base });
+}
+
+/**
+ * Evaluates many coupons against the same cart — the cart and its products
+ * are fetched once (not once per coupon), and the coupon-specific checks
+ * (usage limits, first-order-only, etc.) run concurrently instead of one
+ * network round trip at a time. Used by the "available coupons" listing.
+ */
+export async function evaluateCouponsForUser(
+  userId: string,
+  coupons: CouponDoc[]
+): Promise<Map<string, { discount: number } | { reason: string }>> {
+  const base = await buildCouponCheckBase(userId);
+  const results = await Promise.all(coupons.map((coupon) => evaluateCoupon(coupon, { userId, ...base })));
+  return new Map(coupons.map((coupon, i) => [String(coupon._id), results[i]]));
 }
 
 /**

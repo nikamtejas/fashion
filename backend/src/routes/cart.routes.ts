@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { Product } from "../models/Product";
 import { Coupon } from "../models/Coupon";
-import { getOrCreateCart, buildCartView, evaluateCouponForUser } from "../services/cart.service";
+import { getOrCreateCart, buildCartView, evaluateCouponForUser, evaluateCouponsForUser } from "../services/cart.service";
 
 const router = Router();
 router.use(requireAuth);
@@ -171,12 +171,12 @@ router.delete("/coupon", async (req, res) => {
  * "Available coupons" bottom sheet. */
 router.get("/coupons/available", async (req, res) => {
   const candidates = await Coupon.find({ active: true });
+  const results = await evaluateCouponsForUser(req.user!.uid, candidates);
 
   const available: { code: string; type: string; value: number; maxDiscount?: number; minOrderValue: number; discount: number; description: string }[] = [];
-  for (const coupon of candidates) {
-    const c = coupon;
-    const result = await evaluateCouponForUser(req.user!.uid, coupon);
-    if ("discount" in result && result.discount > 0) {
+  for (const c of candidates) {
+    const result = results.get(String(c._id));
+    if (result && "discount" in result && result.discount > 0) {
       available.push({
         code: c.code,
         type: c.type,

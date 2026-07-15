@@ -88,11 +88,69 @@ router.get("/", async (req, res) => {
   const query: Record<string, unknown> = { order: { $in: orderIds } };
   if (orderId) query.order = orderId;
 
-  const refunds = await RefundRequest.find(query).sort({ createdAt: -1 }).select("_id").lean();
+  // Batched instead of one serializeRefund() (~5 queries) per return: every
+  // lookup below runs once for the whole list via $in, not once per refund.
+  const refunds = await RefundRequest.find(query).populate("storeLocation", "name address city").sort({ createdAt: -1 }).lean();
+
+  const refundOrderIds = [...new Set(refunds.map((r) => String(r.order)))];
+  const appointmentIds = refunds.map((r) => r.appointment).filter((id): id is NonNullable<typeof id> => Boolean(id));
+  const shipmentIds = refunds.map((r) => r.reverseShipment).filter((id): id is NonNullable<typeof id> => Boolean(id));
+
+  const [ordersByIdList, appointments, shipments] = await Promise.all([
+    Order.find({ _id: { $in: refundOrderIds }, user: req.user!.uid }).lean(),
+    appointmentIds.length ? PickupAppointment.find({ _id: { $in: appointmentIds } }).lean() : Promise.resolve([]),
+    shipmentIds.length ? Shipment.find({ _id: { $in: shipmentIds } }).lean() : Promise.resolve([]),
+  ]);
+
+  const shipmentDocIds = shipments.map((s) => s._id);
+  const events = shipmentDocIds.length
+    ? await ShipmentEvent.find({ shipment: { $in: shipmentDocIds } }).sort({ timestamp: 1 }).lean()
+    : [];
+
+  const orderById = new Map(ordersByIdList.map((o) => [String(o._id), o]));
+  const appointmentById = new Map(appointments.map((a) => [String(a._id), a]));
+  const shipmentById = new Map(shipments.map((s) => [String(s._id), s]));
+  const eventsByShipment = new Map<string, typeof events>();
+  for (const e of events) {
+    const key = String(e.shipment);
+    if (!eventsByShipment.has(key)) eventsByShipment.set(key, []);
+    eventsByShipment.get(key)!.push(e);
+  }
+
   const results = [];
-  for (const r of refunds) {
-    const s = await serializeRefund(String(r._id), req.user!.uid);
-    if (s) results.push(s);
+  for (const refund of refunds) {
+    const order = orderById.get(String(refund.order));
+    if (!order) continue; // not this user's order — same guard serializeRefund used
+
+    const appointment = refund.appointment ? appointmentById.get(String(refund.appointment)) : null;
+    const shipment = refund.reverseShipment ? shipmentById.get(String(refund.reverseShipment)) : null;
+    const shipmentEvents = shipment ? (eventsByShipment.get(String(shipment._id)) ?? []) : [];
+
+    const itemDetails = refund.items.map((ri) => {
+      const ordered = order.items.find((oi) => oi.sku === ri.sku);
+      return { sku: ri.sku, qty: ri.qty, name: ordered?.name ?? ri.sku, image: ordered?.image, price: ordered?.price ?? 0 };
+    });
+
+    results.push({
+      id: String(refund._id),
+      orderId: String(order._id),
+      orderNumber: order.orderNumber,
+      status: refund.status,
+      method: refund.method,
+      reason: refund.reason,
+      rejectionReason: refund.rejectionReason,
+      refundAmount: refund.refundAmount,
+      expectedCreditDate: refund.expectedCreditDate,
+      items: itemDetails,
+      photos: refund.photos,
+      store: refund.storeLocation,
+      appointment: appointment
+        ? { id: String(appointment._id), date: appointment.date, timeSlot: appointment.timeSlot, status: appointment.status, qrCode: appointment.qrCode }
+        : null,
+      reverseShipment: shipment ? { awbNumber: shipment.awbNumber, status: shipment.status } : null,
+      events: shipmentEvents.map((e) => ({ status: e.status, location: e.location, description: e.description, timestamp: e.timestamp })),
+      createdAt: refund.createdAt,
+    });
   }
   res.json({ returns: results });
 });

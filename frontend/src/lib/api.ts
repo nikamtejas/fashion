@@ -66,3 +66,20 @@ export async function apiFetch<T = unknown>(path: string, opts: ApiFetchOptions 
 
   return res.json() as Promise<T>;
 }
+
+const getCache = new Map<string, { data: unknown; expiresAt: number }>();
+
+/**
+ * apiFetch with a short in-memory cache, for GET data that barely changes
+ * (categories, lookbooks, store lists). Every backend round trip currently
+ * costs ~1s+, and client components re-fetch this on every mount — this
+ * cuts that down to once per `ttlMs` window per browser session instead of
+ * once per page visit.
+ */
+export async function cachedApiFetch<T = unknown>(path: string, ttlMs = 5 * 60 * 1000): Promise<T> {
+  const hit = getCache.get(path);
+  if (hit && hit.expiresAt > Date.now()) return hit.data as T;
+  const data = await apiFetch<T>(path);
+  getCache.set(path, { data, expiresAt: Date.now() + ttlMs });
+  return data;
+}

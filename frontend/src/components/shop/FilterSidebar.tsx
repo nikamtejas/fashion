@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ChevronDown } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { cachedApiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { SHOP_SUBCATEGORIES } from "@/lib/shopCategories";
 
@@ -41,7 +41,9 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   React.useEffect(() => {
-    apiFetch<{ categories: Category[] }>("/api/categories").then((data) => setCategories(data.categories));
+    // Categories change essentially never — cached across mounts so
+    // switching in and out of /shop doesn't re-fetch the same list.
+    cachedApiFetch<{ categories: Category[] }>("/api/categories").then((data) => setCategories(data.categories));
   }, []);
 
   function toggle(list: string[], value: string) {

@@ -3,7 +3,7 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { MapPin, LocateFixed, Clock, Phone } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, cachedApiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -40,7 +40,10 @@ export default function StoreLocatorPage() {
   const [selected, setSelected] = React.useState<string | undefined>();
 
   React.useEffect(() => {
-    apiFetch<{ stores: StoreListing[] }>("/api/stores")
+    // Store locations/hours change rarely — cache briefly (short enough
+    // that the today-is-open flag doesn't go stale across an open/close
+    // boundary) instead of re-fetching the full list on every visit.
+    cachedApiFetch<{ stores: StoreListing[] }>("/api/stores", 120_000)
       .then((d) => setAllStores(d.stores))
       .catch(() => setAllStores([]));
   }, []);

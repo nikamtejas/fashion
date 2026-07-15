@@ -99,20 +99,38 @@ export async function placeOrder(input: PlaceOrderInput) {
   try {
     let orderId: string | undefined;
     await session.withTransaction(async () => {
-      // 1. Atomic stock decrement per line; abort the whole order if short.
-      // $elemMatch is load-bearing: with separate "variants.sku" and
-      // "variants.stock" clauses the positional $ can resolve to a
-      // DIFFERENT variant that satisfied only one clause and decrement
-      // the wrong SKU's stock (observed in testing, not hypothetical).
-      for (const item of view.items) {
-        const result = await Product.updateOne(
-          { _id: item.productId, variants: { $elemMatch: { sku: item.sku, stock: { $gte: item.qty } } } },
-          { $inc: { "variants.$.stock": -item.qty } },
-          { session }
-        );
-        if (result.modifiedCount === 0) {
-          throw new HttpError(409, `${item.name} (${item.size}) just went out of stock`);
-        }
+      // 1. Atomic stock decrement, all lines in one round trip via
+      // bulkWrite (the DB round trip to Atlas costs ~1s+ here, so N
+      // sequential updateOnes for an N-item cart was N seconds). $elemMatch
+      // is load-bearing: with separate "variants.sku" and "variants.stock"
+      // clauses the positional $ can resolve to a DIFFERENT variant that
+      // satisfied only one clause and decrement the wrong SKU's stock
+      // (observed in testing, not hypothetical). A line whose condition
+      // isn't met simply modifies 0 documents — not a bulkWrite error — so
+      // every line is still attempted; the whole transaction aborts below
+      // regardless of how many lines got attempted before we detect it.
+      const stockResult = await Product.bulkWrite(
+        view.items.map((item) => ({
+          updateOne: {
+            filter: { _id: item.productId, variants: { $elemMatch: { sku: item.sku, stock: { $gte: item.qty } } } },
+            update: { $inc: { "variants.$.stock": -item.qty } },
+          },
+        })),
+        { session }
+      );
+      if (stockResult.modifiedCount !== view.items.length) {
+        // Rare path — one bulkWrite already told us something's short; a
+        // single follow-up read (within the same transaction snapshot)
+        // pinpoints which line for the error message.
+        const productIds = [...new Set(view.items.map((i) => i.productId))];
+        const products = await Product.find({ _id: { $in: productIds } })
+          .select("variants")
+          .session(session)
+          .lean();
+        const stockBySku = new Map<string, number>();
+        for (const p of products) for (const v of p.variants) stockBySku.set(v.sku, v.stock);
+        const short = view.items.find((item) => (stockBySku.get(item.sku) ?? 0) < item.qty);
+        throw new HttpError(409, `${short?.name ?? "An item"}${short ? ` (${short.size})` : ""} just went out of stock`);
       }
 
       // 2. Consume the coupon.
@@ -220,13 +238,19 @@ export async function placeOrder(input: PlaceOrderInput) {
 }
 
 export async function sendOrderConfirmationEmail(orderId: string) {
-  const order = await Order.findById(orderId).populate("storeLocation", "name").lean();
+  // getSettings() doesn't depend on the order, and the user/appointment
+  // lookups only depend on `order`, not on each other — two rounds of
+  // parallel queries instead of four sequential ones.
+  const [order, settings] = await Promise.all([
+    Order.findById(orderId).populate("storeLocation", "name").lean(),
+    getSettings(),
+  ]);
   if (!order) return;
-  const user = await User.findById(order.user).select("email name").lean();
+  const [user, appointment] = await Promise.all([
+    User.findById(order.user).select("email name").lean(),
+    order.deliveryMethod === "PICKUP" ? PickupAppointment.findOne({ order: order._id }).lean() : Promise.resolve(null),
+  ]);
   if (!user) return;
-  const appointment =
-    order.deliveryMethod === "PICKUP" ? await PickupAppointment.findOne({ order: order._id }).lean() : null;
-  const settings = await getSettings();
 
   const storeName = (order.storeLocation as unknown as { name?: string })?.name;
   const nextStep = appointment
@@ -289,11 +313,16 @@ export async function releaseStaleReservations(now = new Date()) {
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        for (const item of order.items) {
-          await Product.updateOne(
-            { _id: item.product, "variants.sku": item.sku },
-            { $inc: { "variants.$[v].stock": item.qty } },
-            { arrayFilters: [{ "v.sku": item.sku }], session }
+        if (order.items.length > 0) {
+          await Product.bulkWrite(
+            order.items.map((item) => ({
+              updateOne: {
+                filter: { _id: item.product, "variants.sku": item.sku },
+                update: { $inc: { "variants.$[v].stock": item.qty } },
+                arrayFilters: [{ "v.sku": item.sku }],
+              },
+            })),
+            { session }
           );
         }
         if (order.coupon) {
@@ -358,11 +387,16 @@ export async function cancelOrder(orderId: string, opts: { reason: string; cance
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
-      for (const item of order.items) {
-        await Product.updateOne(
-          { _id: item.product, "variants.sku": item.sku },
-          { $inc: { "variants.$[v].stock": item.qty } },
-          { arrayFilters: [{ "v.sku": item.sku }], session }
+      if (order.items.length > 0) {
+        await Product.bulkWrite(
+          order.items.map((item) => ({
+            updateOne: {
+              filter: { _id: item.product, "variants.sku": item.sku },
+              update: { $inc: { "variants.$[v].stock": item.qty } },
+              arrayFilters: [{ "v.sku": item.sku }],
+            },
+          })),
+          { session }
         );
       }
       if (order.coupon) {
