@@ -1,13 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
+import mongoose from "mongoose";
 import { Order } from "../models/Order";
 import { Payment } from "../models/Payment";
 import { Shipment } from "../models/Shipment";
 import { ShipmentEvent } from "../models/ShipmentEvent";
 import { PickupAppointment } from "../models/PickupAppointment";
+import { RefundRequest } from "../models/RefundRequest";
+import { getSettings } from "../models/Settings";
 import { requireAdmin } from "../middleware/auth";
 import { createShipmentForOrder } from "../services/shipment.service";
 import { HttpError, cancelOrder } from "../services/order.service";
+import { deliveredAt } from "../services/returns.service";
 import { buildShippingLabel } from "../lib/shippingLabel";
 import { notifyUser } from "../services/notify.service";
 import { sendDeliveredEmail } from "../services/orderEmails.service";
@@ -15,6 +19,75 @@ import { orderSubject } from "../lib/orderSubject";
 
 const router = Router();
 router.use(requireAdmin);
+
+/** Pulls a Mongo ObjectId out of either a bare id or the full URL the
+ * invoice QR encodes (`{frontendUrl}/account/orders/{id}`), so the same
+ * scanner/manual-entry box on the "Check return eligibility" station
+ * accepts whatever the camera actually reads off the invoice. */
+function extractOrderId(raw: string): string | null {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/([a-f0-9]{24})(?:[/?#]|$)/i);
+  const candidate = match ? match[1] : trimmed;
+  return mongoose.isValidObjectId(candidate) ? candidate : null;
+}
+
+/** "Check return eligibility" station: scan the invoice QR (encodes the
+ * order's internal id as a URL) or type the order number printed on the
+ * invoice as plain text — either one resolves to the same order. */
+router.get("/lookup/:code", async (req, res) => {
+  const orderId = extractOrderId(req.params.code);
+  const order = await (orderId
+    ? Order.findById(orderId)
+    : Order.findOne({ orderNumber: req.params.code.trim().toUpperCase() })
+  ).populate("user", "name email phone").lean();
+  if (!order) return res.status(404).json({ error: "No order matches this code" });
+
+  const [delivered, settings, existingReturns] = await Promise.all([
+    deliveredAt(order),
+    getSettings(),
+    RefundRequest.find({ order: order._id }).select("status method createdAt refundAmount").sort({ createdAt: -1 }).lean(),
+  ]);
+
+  const windowMs = settings.returnWindowDays * 24 * 60 * 60 * 1000;
+  const daysSinceDelivered = delivered ? Math.floor((Date.now() - delivered.getTime()) / (24 * 60 * 60 * 1000)) : null;
+  const expiresAt = delivered ? new Date(delivered.getTime() + windowMs) : null;
+  const eligible = Boolean(delivered && Date.now() - delivered.getTime() <= windowMs);
+
+  const user = order.user as unknown as { name?: string; email?: string; phone?: string } | null;
+  res.json({
+    order: {
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      deliveryMethod: order.deliveryMethod,
+      items: order.items.map((i) => ({ sku: i.sku, name: i.name, size: i.size, color: i.color, qty: i.qty, price: i.price, image: i.image })),
+      total: order.pricing.total,
+    },
+    customer: { name: user?.name, email: user?.email, phone: user?.phone },
+    delivery: {
+      deliveredAt: delivered,
+      daysSinceDelivered,
+      returnWindowDays: settings.returnWindowDays,
+      expiresAt,
+      eligible: order.status === "DELIVERED" ? eligible : false,
+      reason:
+        order.status !== "DELIVERED"
+          ? `Order is ${order.status.replaceAll("_", " ").toLowerCase()}, not delivered yet`
+          : !delivered
+            ? "Delivery date couldn't be determined"
+            : !eligible
+              ? `${settings.returnWindowDays}-day return window has closed`
+              : null,
+    },
+    existingReturns: existingReturns.map((r) => ({
+      id: r._id,
+      status: r.status,
+      method: r.method,
+      refundAmount: r.refundAmount,
+      createdAt: r.createdAt,
+    })),
+  });
+});
 
 router.get("/", async (req, res) => {
   const status = req.query.status as string | undefined;

@@ -35,7 +35,7 @@ export interface CreateReturnInput {
   bankDetails?: { accountName: string; accountNumber: string; ifsc: string };
 }
 
-async function deliveredAt(order: {
+export async function deliveredAt(order: {
   _id: mongoose.Types.ObjectId;
   status: string;
   updatedAt?: Date;
