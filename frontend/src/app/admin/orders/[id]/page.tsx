@@ -15,13 +15,24 @@ interface AdminOrderDetail {
     status: string;
     deliveryMethod: "HOME" | "PICKUP";
     createdAt: string;
+    cancelReason?: string;
+    cancelledAt?: string;
+    cancelledBy?: "CUSTOMER" | "ADMIN";
     items: { name: string; sku: string; size?: string; color?: string; price: number; qty: number }[];
     pricing: { subtotal: number; discount: number; gst: number; shipping: number; codFee?: number; total: number };
     shippingAddress?: { name: string; phone: string; line1: string; line2?: string; city: string; state: string; pincode: string };
     storeLocation?: { name: string; city: string };
     user?: { email: string; name?: string };
   };
-  payment: { method: string; status: string; razorpayPaymentId?: string; snapmintPlan?: { tenureMonths: number; monthlyAmount: number } } | null;
+  payment: {
+    method: string;
+    status: string;
+    razorpayPaymentId?: string;
+    razorpayRefundId?: string;
+    refundedAt?: string;
+    refundBankDetails?: { accountName?: string; accountNumber?: string; ifsc?: string };
+    snapmintPlan?: { tenureMonths: number; monthlyAmount: number };
+  } | null;
   shipment: { _id: string; awbNumber?: string; status: string; estimatedDelivery?: string } | null;
   events: { status: string; location?: string; description?: string; timestamp: string }[];
   appointment: { date: string; timeSlot: string; status: string } | null;
@@ -68,6 +79,19 @@ export default function AdminOrderDetailPage() {
     }
   }
 
+  async function markRefundPaid() {
+    setBusy(true);
+    try {
+      await apiFetch(`/api/admin/orders/${id}/mark-refund-paid`, { method: "POST" });
+      toast({ title: "Refund marked as paid — customer notified", variant: "success" });
+      load();
+    } catch (err) {
+      toast({ title: "Couldn't mark as paid", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!data) return <p className="text-sm text-foreground/50">Loading…</p>;
   const { order, payment, shipment, events, appointment } = data;
 
@@ -87,7 +111,7 @@ export default function AdminOrderDetailPage() {
             {order.user?.email} · {new Date(order.createdAt).toLocaleString("en-IN")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant={order.status === "DELIVERED" ? "success" : "outline"}>{order.status.replaceAll("_", " ")}</Badge>
           {canShip && (
             <Button size="sm" magnetic={false} disabled={busy} onClick={readyToShip}>
@@ -104,7 +128,18 @@ export default function AdminOrderDetailPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      {order.status === "CANCELLED" && (order.cancelReason || order.cancelledAt) && (
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
+          <p className="text-xs font-medium uppercase tracking-wider text-foreground/50">Cancellation</p>
+          {order.cancelReason && <p className="mt-1 text-sm">{order.cancelReason}</p>}
+          <p className="mt-1 text-xs text-foreground/50">
+            Cancelled by {order.cancelledBy === "ADMIN" ? "admin" : "customer"}
+            {order.cancelledAt && ` · ${new Date(order.cancelledAt).toLocaleString("en-IN")}`}
+          </p>
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-border p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-foreground/50">Payment</p>
           <p className="mt-1 text-sm">
@@ -120,6 +155,39 @@ export default function AdminOrderDetailPage() {
             <Button size="sm" className="mt-3 w-full" magnetic={false} disabled={busy} onClick={collectCash}>
               {busy ? "Recording…" : "Cash collected — mark as paid"}
             </Button>
+          )}
+
+          {payment?.status === "REFUNDED" && (
+            <p className="mt-3 rounded-xl bg-[var(--color-sage,#8a9b7d)]/15 p-3 text-xs text-[var(--color-sage-dark,#5c6e50)]">
+              {payment.method === "RAZORPAY" && payment.razorpayRefundId
+                ? `Refunded automatically via Razorpay — ${payment.razorpayRefundId}`
+                : payment.method === "SNAPMINT"
+                  ? "EMI cancelled automatically via Snapmint"
+                  : "Refund paid out"}
+              {payment.refundedAt && ` · ${new Date(payment.refundedAt).toLocaleString("en-IN")}`}
+            </p>
+          )}
+
+          {payment?.status === "REFUND_PENDING" && (
+            <div className="mt-3 rounded-xl bg-amber-500/10 p-3">
+              {payment.refundBankDetails?.accountNumber ? (
+                <>
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                    No automated refund rail for {payment.method} — bank details received, ready to pay out
+                  </p>
+                  <p className="mt-1 text-xs text-foreground/60">
+                    {payment.refundBankDetails.accountName} · {payment.refundBankDetails.accountNumber} · {payment.refundBankDetails.ifsc}
+                  </p>
+                  <Button size="sm" className="mt-2 w-full" magnetic={false} disabled={busy} onClick={markRefundPaid}>
+                    {busy ? "Marking…" : `Mark ₹${order.pricing.total.toLocaleString("en-IN")} as paid`}
+                  </Button>
+                </>
+              ) : (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  No automated refund rail for {payment.method} — waiting for the customer to submit bank details from their order page
+                </p>
+              )}
+            </div>
           )}
         </div>
         <div className="rounded-2xl border border-border p-4">

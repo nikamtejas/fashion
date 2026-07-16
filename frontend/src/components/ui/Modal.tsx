@@ -32,7 +32,12 @@ export function Modal({ open, onOpenChange, title, description, children, classN
             <Dialog.Content asChild forceMount>
               <motion.div
                 className={cn(
-                  "fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-surface p-6 shadow-2xl",
+                  // max-h + overflow-y-auto is load-bearing: without it, a
+                  // fixed, height-unconstrained, vertically-centered modal
+                  // simply overflows past both edges of a short mobile
+                  // viewport with no way to reach the clipped content — the
+                  // page behind it is scroll-locked while a dialog is open.
+                  "fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col overflow-y-auto overscroll-contain rounded-2xl border border-border bg-surface p-6 shadow-2xl",
                   className
                 )}
                 initial={{ opacity: 0, scale: 0.96, y: 12 }}

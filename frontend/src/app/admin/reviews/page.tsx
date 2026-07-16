@@ -110,7 +110,7 @@ export default function AdminReviewsPage() {
                   · {new Date(r.createdAt).toLocaleDateString("en-IN")}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {tab === "PENDING" ? (
                   <>
                     <Button size="sm" magnetic={false} disabled={busy} onClick={() => act(r._id, "approve")}>

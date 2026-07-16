@@ -37,4 +37,13 @@ router.post("/subscribe", async (req, res) => {
   res.json({ ok: true });
 });
 
+router.delete("/subscribe", async (req, res) => {
+  const parsed = z.object({ email: z.string().email() }).safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Enter a valid email address" });
+  }
+  await NewsletterSubscriber.deleteOne({ email: parsed.data.email.toLowerCase().trim() });
+  res.json({ ok: true });
+});
+
 export default router;

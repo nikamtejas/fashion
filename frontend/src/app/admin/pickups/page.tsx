@@ -213,7 +213,7 @@ export default function AdminPickupsPage() {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant={STATUS_VARIANT[a.status] ?? "outline"}>{a.status.replaceAll("_", " ")}</Badge>
               {a.status === "BOOKED" && (
                 <Button size="sm" variant="outline" magnetic={false} disabled={busy} onClick={() => markReady(a)}>

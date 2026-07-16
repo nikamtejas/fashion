@@ -163,10 +163,10 @@ export function ReviewStep({
       </div>
 
       <div className="flex gap-3">
-        <Button type="button" variant="outline" onClick={onBack} magnetic={false}>
+        <Button type="button" variant="outline" onClick={onBack} magnetic={false} className="flex-1">
           Back
         </Button>
-        <Button type="button" disabled={publishing || flaggedImages.length > 0} onClick={handlePublish}>
+        <Button type="button" disabled={publishing || flaggedImages.length > 0} onClick={handlePublish} className="flex-1">
           {publishing ? "Publishing…" : "Publish product"}
         </Button>
       </div>

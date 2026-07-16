@@ -30,6 +30,10 @@ const PaymentSchema = new Schema(
       ifsc: { type: String },
     },
     refundedAt: { type: Date },
+    // Set for automatic refunds (Razorpay's own refund id) — lets an admin
+    // trace a specific refund against Razorpay's dashboard/API instead of
+    // just seeing status: REFUNDED with nothing to check it against.
+    razorpayRefundId: { type: String },
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
     razorpaySignature: { type: String },

@@ -10,6 +10,7 @@ import categoriesRoutes from "./routes/categories.routes";
 import productsRoutes from "./routes/products.routes";
 import searchRoutes from "./routes/search.routes";
 import newsletterRoutes from "./routes/newsletter.routes";
+import adminNewsletterRoutes from "./routes/adminNewsletter.routes";
 import cloudinaryRoutes from "./routes/cloudinary.routes";
 import favoritesRoutes from "./routes/favorites.routes";
 import adminProductsRoutes from "./routes/adminProducts.routes";
@@ -65,6 +66,7 @@ export function createApp() {
   app.use("/api/products", productsRoutes);
   app.use("/api/search", searchRoutes);
   app.use("/api/newsletter", newsletterRoutes);
+  app.use("/api/admin/newsletter", adminNewsletterRoutes);
   app.use("/api/cloudinary", cloudinaryRoutes);
   app.use("/api/favorites", favoritesRoutes);
   app.use("/api/admin/products", adminProductsRoutes);

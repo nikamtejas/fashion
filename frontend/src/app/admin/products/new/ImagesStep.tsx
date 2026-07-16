@@ -199,7 +199,7 @@ export function ImagesStep({
           Upload one casual photo of the garment&rsquo;s front and one of its back. LuxeLoom will turn these into a
           four-photo sales set.
         </p>
-        <div className="grid grid-cols-2 gap-4 sm:max-w-md">
+        <div className="grid grid-cols-1 gap-4 sm:max-w-md sm:grid-cols-2">
           <div>
             <PhotoDropzone label="Front" currentUrl={front?.secureUrl} onSelect={(uri) => handleUploadOriginal("FRONT", uri)} />
             {coverControl(front)}
@@ -293,10 +293,10 @@ export function ImagesStep({
       </div>
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack} magnetic={false}>
+        <Button variant="outline" onClick={onBack} magnetic={false} className="flex-1">
           Back
         </Button>
-        <Button onClick={onNext} disabled={!studioFront && !modelFront}>
+        <Button onClick={onNext} disabled={!studioFront && !modelFront} className="flex-1">
           Continue to Pricing
         </Button>
       </div>

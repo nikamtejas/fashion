@@ -198,6 +198,32 @@ router.patch("/:id/notes", async (req, res) => {
   res.json({ ok: true });
 });
 
+/** Cancellation refunds with no refund API (COD/CASH/CARD/UPI) park at
+ * REFUND_PENDING until the customer submits bank details — see
+ * payments.routes.ts refund-bank-details. `completed` covers the same
+ * cancellation refunds once done, whether Razorpay/Snapmint auto-refunded
+ * them or an admin paid one out manually here — return refunds are tracked
+ * on the returns page instead, so those are filtered out by order status.
+ * Registered before `/:id` — otherwise Express would match "/refunds" as an
+ * `:id` value and try to cast it to an ObjectId. */
+router.get("/refunds", async (req, res) => {
+  const [pending, refundedPayments] = await Promise.all([
+    Payment.find({ status: "REFUND_PENDING" })
+      .populate({ path: "order", select: "orderNumber user pricing.total cancelledAt", populate: { path: "user", select: "email" } })
+      .sort({ updatedAt: -1 })
+      .lean(),
+    Payment.find({ status: "REFUNDED" })
+      .populate({ path: "order", select: "orderNumber user pricing.total cancelledAt status", populate: { path: "user", select: "email" } })
+      .sort({ refundedAt: -1 })
+      .limit(100)
+      .lean(),
+  ]);
+  const completed = refundedPayments.filter(
+    (p) => (p.order as unknown as { status?: string } | null)?.status === "CANCELLED"
+  );
+  res.json({ pending, completed });
+});
+
 router.get("/:id", async (req, res) => {
   const order = await Order.findById(req.params.id)
     .populate("user", "email name")
@@ -248,17 +274,6 @@ router.post("/:id/cod/mark-cash-collected", async (req, res) => {
     return res.status(400).json({ error: "No pending COD payment to collect on this order" });
   }
   res.json({ ok: true });
-});
-
-/** Cancellation refunds with no refund API (COD/CASH/CARD/UPI) park at
- * REFUND_PENDING until the customer submits bank details — see
- * payments.routes.ts refund-bank-details. */
-router.get("/refunds/pending", async (req, res) => {
-  const payments = await Payment.find({ status: "REFUND_PENDING" })
-    .populate({ path: "order", select: "orderNumber user pricing.total cancelledAt", populate: { path: "user", select: "email" } })
-    .sort({ updatedAt: -1 })
-    .lean();
-  res.json({ payments });
 });
 
 router.post("/:id/mark-refund-paid", async (req, res) => {

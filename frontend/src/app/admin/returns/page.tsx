@@ -166,7 +166,7 @@ export default function AdminReturnsPage() {
                 </p>
                 <p className="mt-1 text-xs text-foreground/60">&ldquo;{r.reason}&rdquo;</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={r.status === "REFUNDED" ? "success" : r.status === "REJECTED" ? "default" : "accent"}>
                   {r.status.replaceAll("_", " ")}
                 </Badge>

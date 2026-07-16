@@ -54,7 +54,7 @@ router.get("/checkout-settings", async (_req, res) => {
 
 const addressSchema = z.object({
   name: z.string().min(2),
-  phone: z.string().min(8),
+  phone: z.string().regex(/^\d{10}$/, "Enter a valid 10-digit phone number"),
   line1: z.string().min(3),
   line2: z.string().optional(),
   city: z.string().min(2),

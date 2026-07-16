@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { cn } from "@/lib/utils";
+import { cn, normalizeIndianPhone } from "@/lib/utils";
 import type { SavedAddress, AddressForm } from "./types";
 
 const EMPTY_FORM: AddressForm = {
@@ -152,7 +152,14 @@ export function AddressStep({
         <form onSubmit={handleSaveNew} className="space-y-4 rounded-xl border border-border p-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Input label="Full name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            <Input label="Phone" required value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            <Input
+              label="Phone"
+              required
+              inputMode="tel"
+              placeholder="10-digit mobile number"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: normalizeIndianPhone(e.target.value) }))}
+            />
           </div>
           <Input label="Address line 1" required value={form.line1} onChange={(e) => setForm((f) => ({ ...f, line1: e.target.value }))} />
           <Input label="Address line 2 (optional)" value={form.line2} onChange={(e) => setForm((f) => ({ ...f, line2: e.target.value }))} />

@@ -127,3 +127,48 @@ export async function sendOtpEmail(email: string, code: string) {
     }),
   });
 }
+
+// Recipients ride in bcc (never to/cc — a marketing blast must never expose
+// one subscriber's address to another), sent in chunks so no single SMTP
+// command tries to bcc an unbounded recipient list at once.
+const NEWSLETTER_BATCH_SIZE = 50;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/** Newsletter blast to every subscriber. `bodyText` is plain text written by
+ * an admin (paragraphs separated by blank lines) — rendered the same way
+ * sendEmail's default body is, through the shared brand template. No
+ * per-recipient personalization (bcc can't do that) — subscribers only have
+ * an email on file, nothing to personalize with anyway. */
+export async function sendNewsletterCampaign(emails: string[], subject: string, bodyText: string) {
+  const bodyHtml = bodyText
+    .split(/\n{2,}/)
+    .map((para) => `<p style="margin:0 0 14px;">${escapeHtml(para).replaceAll("\n", "<br/>")}</p>`)
+    .join("");
+  const unsubscribeNote = `Don't want these? Unsubscribe anytime at ${FRONTEND_URL}/unsubscribe.`;
+
+  if (EMAIL_MOCK) {
+    logIntegrationCall("email", "sendNewsletterCampaign", { recipientCount: emails.length, subject });
+    // eslint-disable-next-line no-console
+    console.log(`\n[DEV NEWSLETTER] To ${emails.length} subscriber(s)\nSubject: ${subject}\n${bodyText}\n`);
+    return;
+  }
+
+  const batches = chunk(emails, NEWSLETTER_BATCH_SIZE);
+  await Promise.all(
+    batches.map((batch) =>
+      getTransporter().sendMail({
+        from: process.env.EMAIL_FROM,
+        to: process.env.EMAIL_FROM,
+        bcc: batch,
+        subject,
+        text: `${bodyText}\n\n${unsubscribeNote}`,
+        html: renderBrandEmail({ heading: subject, bodyHtml, footnote: unsubscribeNote }),
+      })
+    )
+  );
+}

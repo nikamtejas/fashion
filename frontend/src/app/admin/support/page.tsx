@@ -35,6 +35,9 @@ export default function AdminSupportPage() {
   }, [filter]);
 
   React.useEffect(() => {
+    // Reset to the loading state when the filter changes so stale tickets
+    // from the previous filter don't flash before the new list arrives.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTickets(null);
     load();
   }, [load]);
@@ -121,21 +124,21 @@ export default function AdminSupportPage() {
 
           {selected ? (
             <div className="flex max-h-[70vh] flex-col rounded-2xl border border-border">
-              <div className="flex items-center justify-between gap-3 border-b border-border p-4">
-                <div>
-                  <p className="text-sm font-medium">{selected.subject}</p>
-                  <p className="text-xs text-foreground/50">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{selected.subject}</p>
+                  <p className="truncate text-xs text-foreground/50">
                     {selected.user?.name ? `${selected.user.name} · ` : ""}
                     {selected.user?.email}
                     {selected.user?.phone ? ` · ${selected.user.phone}` : ""}
                   </p>
                 </div>
                 {selected.status === "OPEN" ? (
-                  <Button size="sm" variant="outline" magnetic={false} onClick={() => setStatus("RESOLVED")}>
+                  <Button size="sm" variant="outline" magnetic={false} className="shrink-0" onClick={() => setStatus("RESOLVED")}>
                     Mark resolved
                   </Button>
                 ) : (
-                  <Button size="sm" variant="outline" magnetic={false} onClick={() => setStatus("OPEN")}>
+                  <Button size="sm" variant="outline" magnetic={false} className="shrink-0" onClick={() => setStatus("OPEN")}>
                     Reopen
                   </Button>
                 )}

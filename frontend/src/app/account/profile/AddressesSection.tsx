@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, normalizeIndianPhone } from "@/lib/utils";
 
 interface SavedAddress {
   _id: string;
@@ -172,7 +172,14 @@ export function AddressesSection() {
             <Input label="Full name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input label="Phone" required value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            <Input
+              label="Phone"
+              required
+              inputMode="tel"
+              placeholder="10-digit mobile number"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: normalizeIndianPhone(e.target.value) }))}
+            />
             <Input
               label="Pincode"
               required

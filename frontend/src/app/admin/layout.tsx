@@ -20,6 +20,7 @@ const NAV_LINKS = [
   { href: "/admin/customers", label: "Customers" },
   { href: "/admin/support", label: "Support" },
   { href: "/admin/lookbooks", label: "Lookbooks" },
+  { href: "/admin/newsletter", label: "Newsletter" },
   { href: "/admin/reviews", label: "Reviews" },
   { href: "/admin/coupons", label: "Coupons" },
   { href: "/admin/pickups", label: "Pickups" },

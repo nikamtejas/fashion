@@ -451,12 +451,15 @@ export async function cancelOrder(orderId: string, opts: { reason: string; cance
   let refundMessage: string | null = null;
   if (payment?.status === "PAID") {
     if (payment.method === "RAZORPAY" && payment.razorpayPaymentId) {
-      await refundPayment(payment.razorpayPaymentId, order.pricing.total);
+      const { refundId } = await refundPayment(payment.razorpayPaymentId, order.pricing.total);
       payment.status = "REFUNDED";
+      payment.razorpayRefundId = refundId;
+      payment.refundedAt = new Date();
       refundMessage = "Your refund has been processed — it should reflect within minutes.";
     } else if (payment.method === "SNAPMINT" && payment.snapmintPlan?.snapmintOrderId) {
       await cancelSnapmintOrder(payment.snapmintPlan.snapmintOrderId);
       payment.status = "REFUNDED";
+      payment.refundedAt = new Date();
       refundMessage = "Your EMI plan has been cancelled — any instalments already paid will be refunded within 5-7 business days.";
     } else {
       // COD/CASH/UPI/CARD: cash was already collected (counter handover or

@@ -96,7 +96,7 @@ export default function AdminLookbooksPage() {
                 <p className="text-xs text-foreground/50">{l.products.length} pieces</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant={l.active ? "success" : "outline"}>{l.active ? "Live" : "Hidden"}</Badge>
               <button onClick={() => remove(l._id)} aria-label="Delete lookbook" className="rounded-lg p-1.5 text-foreground/50 hover:text-red-600">
                 <Trash2 className="h-4 w-4" />

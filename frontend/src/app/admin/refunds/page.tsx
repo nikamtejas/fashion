@@ -15,13 +15,26 @@ interface PendingRefund {
   order?: { _id: string; orderNumber: string; user?: { email: string } };
 }
 
+interface CompletedRefund {
+  _id: string;
+  method: string;
+  amount: number;
+  refundedAt?: string;
+  razorpayRefundId?: string;
+  order?: { _id: string; orderNumber: string; user?: { email: string } };
+}
+
 export default function AdminRefundsPage() {
   const { toast } = useToast();
   const [payments, setPayments] = React.useState<PendingRefund[] | null>(null);
+  const [completed, setCompleted] = React.useState<CompletedRefund[] | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const load = React.useCallback(() => {
-    apiFetch<{ payments: PendingRefund[] }>("/api/admin/orders/refunds/pending").then((data) => setPayments(data.payments));
+    apiFetch<{ pending: PendingRefund[]; completed: CompletedRefund[] }>("/api/admin/orders/refunds").then((data) => {
+      setPayments(data.pending);
+      setCompleted(data.completed);
+    });
   }, []);
 
   React.useEffect(() => {
@@ -70,10 +83,10 @@ export default function AdminRefundsPage() {
                       {details!.accountName} · {details!.accountNumber} · {details!.ifsc}
                     </p>
                   ) : (
-                    <p className="mt-1 text-xs text-foreground/40">Waiting on the customer's bank details</p>
+                    <p className="mt-1 text-xs text-foreground/40">Waiting on the customer&apos;s bank details</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={hasDetails ? "accent" : "outline"}>{hasDetails ? "Ready to pay" : "Pending details"}</Badge>
                   <Button
                     size="sm"
@@ -84,6 +97,43 @@ export default function AdminRefundsPage() {
                     <Banknote className="h-3.5 w-3.5" /> Mark as paid
                   </Button>
                 </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <h2 className="mt-10 font-display text-xl">Completed refunds</h2>
+      <p className="mt-1 text-sm text-foreground/50">
+        Cancellation refunds already settled — automatically via Razorpay/Snapmint, or manually paid out above.
+      </p>
+
+      {completed === null && <p className="mt-8 text-sm text-foreground/50">Loading…</p>}
+      {completed?.length === 0 && <p className="mt-8 text-sm text-foreground/50">No completed refunds yet.</p>}
+
+      <div className="mt-6 space-y-3">
+        {completed?.map((p) => {
+          const automatic = p.method === "RAZORPAY" || p.method === "SNAPMINT";
+          return (
+            <div key={p._id} className="rounded-2xl border border-border p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">
+                    {p.order?.orderNumber} · ₹{p.amount.toLocaleString("en-IN")}
+                  </p>
+                  <p className="mt-0.5 text-xs text-foreground/50">
+                    {p.order?.user?.email} · paid via {p.method}
+                  </p>
+                  <p className="mt-1 text-xs text-foreground/60">
+                    {p.method === "RAZORPAY" && p.razorpayRefundId
+                      ? `Refunded automatically via Razorpay — ${p.razorpayRefundId}`
+                      : p.method === "SNAPMINT"
+                        ? "EMI cancelled automatically via Snapmint"
+                        : "Paid out manually by admin"}
+                    {p.refundedAt && ` · ${new Date(p.refundedAt).toLocaleString("en-IN")}`}
+                  </p>
+                </div>
+                <Badge variant={automatic ? "success" : "outline"}>{automatic ? "Automatic" : "Manual"}</Badge>
               </div>
             </div>
           );
