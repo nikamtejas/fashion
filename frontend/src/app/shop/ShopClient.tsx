@@ -114,7 +114,6 @@ export function ShopClient({
     // useCallback over them), so depending on it alone re-runs this on
     // every filter change — data-fetching-effect pattern; setState happens
     // inside the async callback, not synchronously in the effect body.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPage(1, true);
   }, [fetchPage]);
 

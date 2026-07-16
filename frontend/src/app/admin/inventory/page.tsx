@@ -72,7 +72,7 @@ export default function AdminInventoryPage() {
           <div key={p.id} className="rounded-2xl border border-border p-4">
             <div className="flex items-center gap-3">
               <div className="relative h-12 w-10 shrink-0 overflow-hidden rounded-md bg-foreground/5">
-                {p.image && <Image src={p.image} alt={p.name} fill className="object-cover" />}
+                {p.image && <Image src={p.image} alt={p.name} fill sizes="40px" className="object-cover" />}
               </div>
               <div>
                 <p className="text-sm font-medium">{p.name}</p>

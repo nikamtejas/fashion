@@ -98,7 +98,9 @@ export default function CartPage() {
             {cart.savedItems.map((s) => (
               <div key={s.sku}>
                 <Link href={`/products/${s.slug}`} className="relative block aspect-[3/4] overflow-hidden rounded-xl bg-foreground/5">
-                  {s.image && <Image src={s.image} alt={s.name} fill className="object-cover" />}
+                  {s.image && (
+                    <Image src={s.image} alt={s.name} fill sizes="(min-width: 640px) 25vw, 50vw" className="object-cover" />
+                  )}
                 </Link>
                 <p className="mt-2 truncate text-sm font-medium">{s.name}</p>
                 <p className="text-xs text-foreground/50">

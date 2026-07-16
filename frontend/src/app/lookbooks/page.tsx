@@ -109,7 +109,13 @@ export default function LookbooksPage() {
                 <Link key={p.id} href={`/products/${p.slug}`} className="group">
                   <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-foreground/5">
                     {p.image && (
-                      <Image src={p.image} alt={p.name} fill className="object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <Image
+                        src={p.image}
+                        alt={p.name}
+                        fill
+                        sizes="(min-width: 640px) 25vw, 50vw"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
                     )}
                     {!p.firstInStockSku && (
                       <span className="absolute left-2 top-2 rounded-full bg-ink/80 px-2 py-0.5 text-[10px] uppercase tracking-wider text-ivory">

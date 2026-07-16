@@ -28,7 +28,7 @@ export function CartLineItem({ line, compact }: { line: CartLine; compact?: bool
   return (
     <div className="flex gap-3 py-4">
       <Link href={`/products/${line.slug}`} className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-foreground/5">
-        {line.image && <Image src={line.image} alt={line.name} fill className="object-cover" />}
+        {line.image && <Image src={line.image} alt={line.name} fill sizes="80px" className="object-cover" />}
       </Link>
 
       <div className="min-w-0 flex-1">

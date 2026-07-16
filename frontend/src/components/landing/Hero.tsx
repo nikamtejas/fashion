@@ -20,6 +20,7 @@ export function Hero() {
           alt="LuxeLoom editorial campaign"
           fill
           priority
+          sizes="100vw"
           className="object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-ink/40" />

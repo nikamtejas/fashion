@@ -94,7 +94,6 @@ export function QrCameraScanner({ onScan }: { onScan: (text: string) => void }) 
 
   return (
     <div className="relative overflow-hidden rounded-xl bg-ink">
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video ref={videoRef} playsInline muted className="aspect-[4/3] w-full object-cover" />
       {/* viewfinder frame */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

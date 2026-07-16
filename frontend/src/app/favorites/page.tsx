@@ -97,7 +97,9 @@ export default function FavoritesPage() {
           <div key={p.id}>
             <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-foreground/5">
               <Link href={`/products/${p.slug}`}>
-                {p.image && <Image src={p.image} alt={p.name} fill className="object-cover" />}
+                {p.image && (
+                  <Image src={p.image} alt={p.name} fill sizes="(min-width: 640px) 33vw, 50vw" className="object-cover" />
+                )}
               </Link>
               <button
                 onClick={() => handleRemove(p.id)}

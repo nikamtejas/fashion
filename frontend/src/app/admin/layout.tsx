@@ -43,6 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Route changed (a nav link was followed) — close the mobile drawer so it
   // doesn't stay open over the next page.
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileOpen(false);
   }, [pathname]);
 

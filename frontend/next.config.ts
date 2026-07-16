@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
+    // AVIF first — Next picks the first format the requesting browser
+    // supports, and AVIF typically beats WebP by another 20-30% at the
+    // same visual quality.
+    formats: ["image/avif", "image/webp"],
+    // Product/lookbook photos are Cloudinary assets that don't mutate in
+    // place (edits upload a new asset) — the 60s default forces the
+    // optimizer to re-derive the same resized/reformatted variant on
+    // almost every request. A long TTL lets it cache for real.
+    minimumCacheTTL: 31536000,
   },
   // Proxies browser API calls to the backend server-side (Next's server,
   // not the browser, makes the actual http://localhost:4000 request). This

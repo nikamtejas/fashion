@@ -107,7 +107,7 @@ export function AskLoom() {
                           className="overflow-hidden rounded-xl border border-border bg-background"
                         >
                           <div className="relative aspect-[3/4] bg-foreground/5">
-                            {p.image && <Image src={p.image} alt={p.name} fill className="object-cover" />}
+                            {p.image && <Image src={p.image} alt={p.name} fill sizes="160px" className="object-cover" />}
                           </div>
                           <div className="p-2">
                             <p className="truncate text-xs font-medium">{p.name}</p>

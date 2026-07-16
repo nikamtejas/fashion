@@ -19,7 +19,7 @@ router.get("/", async (_req, res) => {
       id: String(l._id),
       title: l.title,
       description: l.description,
-      coverImage: l.coverImage?.secureUrl ?? null,
+      coverImage: l.coverImage?.publicId ? cloudinaryUrl(l.coverImage.publicId, 900) : null,
       products: l.products
         .map((pid) => byId.get(String(pid)))
         .filter(Boolean)

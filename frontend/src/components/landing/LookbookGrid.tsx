@@ -24,6 +24,7 @@ export function LookbookGrid() {
                 alt={look.caption}
                 width={600}
                 height={i % 2 === 0 ? 750 : 500}
+                sizes="(min-width: 640px) 33vw, 50vw"
                 className="w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 flex items-end bg-gradient-to-t from-ink/60 via-transparent to-transparent p-4 opacity-0 transition-opacity group-hover:opacity-100">

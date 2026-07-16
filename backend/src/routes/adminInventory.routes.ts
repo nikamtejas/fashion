@@ -5,6 +5,7 @@ import { Product } from "../models/Product";
 import { checkAlertsForProduct } from "../services/alerts.service";
 import { notifyAdmins } from "../services/notify.service";
 import { env } from "../config/env";
+import { cloudinaryUrl } from "../lib/cloudinary";
 
 const router = Router();
 router.use(requireAdmin);
@@ -21,7 +22,7 @@ router.get("/", async (req, res) => {
       name: p.name,
       slug: p.slug,
       status: p.status,
-      image: p.images?.[0]?.secureUrl ?? null,
+      image: p.images?.[0]?.publicId ? cloudinaryUrl(p.images[0].publicId, 80) : null,
       variants: p.variants.map((v) => ({ sku: v.sku, size: v.size, color: v.color, stock: v.stock })),
       totalStock: p.variants.reduce((s, v) => s + v.stock, 0),
     })),

@@ -76,7 +76,7 @@ export default function OrdersPage() {
             <div className="mt-3 flex gap-2">
               {o.items.slice(0, 4).map((i, idx) => (
                 <div key={idx} className="relative h-14 w-11 overflow-hidden rounded-md bg-foreground/5">
-                  {i.image && <Image src={i.image} alt={i.name} fill className="object-cover" />}
+                  {i.image && <Image src={i.image} alt={i.name} fill sizes="44px" className="object-cover" />}
                 </div>
               ))}
               {o.items.length > 4 && (

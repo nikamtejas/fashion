@@ -2,13 +2,25 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAdmin } from "../middleware/auth";
 import { Lookbook } from "../models/Lookbook";
+import { cloudinaryUrl } from "../lib/cloudinary";
 
 const router = Router();
 router.use(requireAdmin);
 
 router.get("/", async (_req, res) => {
   const lookbooks = await Lookbook.find().sort({ order: 1, createdAt: -1 }).populate("products", "name slug images").lean();
-  res.json({ lookbooks });
+  res.json({
+    lookbooks: lookbooks.map((l) => ({
+      ...l,
+      products: l.products.map((p) => ({
+        ...p,
+        images: (p as unknown as { images?: { publicId?: string }[] }).images?.map((img) => ({
+          ...img,
+          thumbUrl: img.publicId ? cloudinaryUrl(img.publicId, 80) : undefined,
+        })),
+      })),
+    })),
+  });
 });
 
 const lookbookSchema = z.object({

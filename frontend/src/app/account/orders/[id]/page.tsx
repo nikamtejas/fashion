@@ -371,7 +371,7 @@ export default function OrderDetailPage() {
         {order.items.map((i, idx) => (
           <div key={idx} className="flex gap-3 py-3">
             <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-foreground/5">
-              {i.image && <Image src={i.image} alt={i.name} fill className="object-cover" />}
+              {i.image && <Image src={i.image} alt={i.name} fill sizes="48px" className="object-cover" />}
             </div>
             <div className="flex-1">
               <p className="text-sm">{i.name}</p>

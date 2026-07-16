@@ -80,6 +80,8 @@ export function SupportSection() {
   }, []);
 
   React.useEffect(() => {
+    // Initial load; setState happens in the async callbacks.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTickets();
     apiFetch<{ orders: OrderOption[] }>("/api/orders")
       .then((data) => setOrders(data.orders))

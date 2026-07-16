@@ -121,6 +121,7 @@ router.get("/:slug", async (req, res) => {
       images: product.images.map((img) => ({
         ...img,
         url: cloudinaryUrl(img.publicId, 1200),
+        thumbUrl: cloudinaryUrl(img.publicId, 128),
       })),
     },
   });

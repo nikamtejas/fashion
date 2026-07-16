@@ -7,6 +7,7 @@ import { Product } from "../models/Product";
 import { Order } from "../models/Order";
 import { Payment } from "../models/Payment";
 import { ensureInvoiceForOrder } from "../services/invoice.service";
+import { cloudinaryUrl } from "../lib/cloudinary";
 
 const router = Router();
 router.use(requireAdmin);
@@ -57,7 +58,7 @@ router.post("/sale", async (req, res) => {
           product: product._id,
           sku: line.sku,
           name: product.name,
-          image: product.images?.[0]?.secureUrl,
+          image: product.images?.[0]?.publicId ? cloudinaryUrl(product.images[0].publicId, 300) : undefined,
           size: variant.size,
           color: variant.color,
           price,
@@ -120,7 +121,7 @@ router.get("/products", async (req, res) => {
     products: products.map((p) => ({
       id: String(p._id),
       name: p.name,
-      image: p.images?.[0]?.secureUrl ?? null,
+      image: p.images?.[0]?.publicId ? cloudinaryUrl(p.images[0].publicId, 88) : null,
       price: p.pricing?.finalPrice ?? 0,
       variants: p.variants.map((v) => ({ sku: v.sku, size: v.size, color: v.color, stock: v.stock })),
     })),

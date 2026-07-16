@@ -66,7 +66,7 @@ export function QuickAddDrawer({
     <Drawer open={open} onOpenChange={onOpenChange} title="Quick add">
       <div className="flex gap-4">
         <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-foreground/5">
-          {product.image && <Image src={product.image} alt={product.name} fill className="object-cover" />}
+          {product.image && <Image src={product.image} alt={product.name} fill sizes="80px" className="object-cover" />}
         </div>
         <div>
           <p className="text-sm font-medium">{product.name}</p>

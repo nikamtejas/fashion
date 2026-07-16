@@ -43,6 +43,7 @@ export function ProductCard({ product, priority }: { product: ShopProduct; prior
               alt={product.name}
               fill
               priority={priority}
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
               className={cn(
                 "object-cover transition-opacity duration-300",
                 product.hoverImage && "group-hover:opacity-0"
@@ -54,6 +55,7 @@ export function ProductCard({ product, priority }: { product: ShopProduct; prior
               src={product.hoverImage}
               alt={product.name}
               fill
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
               className="object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
             />
           )}

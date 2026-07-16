@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 interface PickerProduct {
   _id: string;
   name: string;
-  images?: { secureUrl: string }[];
+  images?: { secureUrl: string; thumbUrl?: string }[];
 }
 
 interface AdminLookbook {
@@ -87,7 +87,9 @@ export default function AdminLookbooksPage() {
               <div className="flex -space-x-3">
                 {l.products.slice(0, 4).map((p) => (
                   <div key={p._id} className="relative h-12 w-10 overflow-hidden rounded-md border-2 border-surface bg-foreground/5">
-                    {p.images?.[0] && <Image src={p.images[0].secureUrl} alt="" fill className="object-cover" />}
+                    {p.images?.[0] && (
+                      <Image src={p.images[0].thumbUrl ?? p.images[0].secureUrl} alt="" fill sizes="40px" className="object-cover" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -130,7 +132,15 @@ export default function AdminLookbooksPage() {
                   )}
                 >
                   <div className="relative aspect-[3/4] bg-foreground/5">
-                    {p.images?.[0] && <Image src={p.images[0].secureUrl} alt={p.name} fill className="object-cover" />}
+                    {p.images?.[0] && (
+                      <Image
+                        src={p.images[0].thumbUrl ?? p.images[0].secureUrl}
+                        alt={p.name}
+                        fill
+                        sizes="(min-width: 640px) 168px, 224px"
+                        className="object-cover"
+                      />
+                    )}
                   </div>
                   <p className="truncate p-1.5 text-[11px]">{p.name}</p>
                 </button>

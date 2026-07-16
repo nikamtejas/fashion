@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 export interface GalleryImage {
   url: string;
+  thumbUrl?: string;
   altText?: string;
   type: string;
 }
@@ -29,7 +30,7 @@ export function ProductGallery({ images }: { images: GalleryImage[] }) {
                 active === i ? "border-accent" : "border-transparent opacity-70 hover:opacity-100"
               )}
             >
-              <Image src={img.url} alt={img.altText ?? ""} fill className="object-cover" />
+              <Image src={img.thumbUrl ?? img.url} alt={img.altText ?? ""} fill sizes="64px" className="object-cover" />
             </button>
           ))}
         </div>
@@ -52,6 +53,7 @@ export function ProductGallery({ images }: { images: GalleryImage[] }) {
               alt={current.altText ?? ""}
               fill
               priority
+              sizes="(min-width: 1024px) 40vw, 100vw"
               className="object-cover transition-transform duration-150 ease-out"
               style={
                 zooming

@@ -46,6 +46,7 @@ export function CategoryTiles() {
                 src={tile.image}
                 alt={tile.label}
                 fill
+                sizes="(min-width: 768px) 60vw, 100vw"
                 className="object-cover transition-transform duration-700 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/10 to-transparent" />

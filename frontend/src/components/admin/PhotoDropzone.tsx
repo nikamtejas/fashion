@@ -50,7 +50,7 @@ export function PhotoDropzone({
         )}
       >
         {currentUrl ? (
-          <Image src={currentUrl} alt={label} fill className="object-cover" />
+          <Image src={currentUrl} alt={label} fill sizes="(min-width: 640px) 224px, 100vw" className="object-cover" />
         ) : (
           <div className="flex flex-col items-center gap-2 text-foreground/40">
             <Upload className="h-6 w-6" />

@@ -65,6 +65,8 @@ export default function AdminCodRemittancePage() {
   }, []);
 
   React.useEffect(() => {
+    // Initial load; setState happens in the async callbacks.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 

@@ -4,7 +4,7 @@ import { Product } from "../models/Product";
 import { requireAdmin } from "../middleware/auth";
 import { slugify } from "../lib/slugify";
 import { computePricing } from "../lib/pricing";
-import { uploadImage, productFolder } from "../lib/cloudinary";
+import { uploadImage, productFolder, cloudinaryUrl } from "../lib/cloudinary";
 import { checkAlertsForProduct } from "../services/alerts.service";
 
 const router = Router();
@@ -25,7 +25,19 @@ router.get("/", async (req, res) => {
     Product.countDocuments(),
   ]);
 
-  res.json({ products, total, page, pages: Math.ceil(total / limit) });
+  res.json({
+    // Consumers range from a 40px table row thumbnail to a ~200px lookbook
+    // picker tile — 200px covers the largest at 1x and the smallest at
+    // retina density, instead of falling back to the full-res secureUrl
+    // (see cloudinaryUrl() doc comment).
+    products: products.map((p) => ({
+      ...p,
+      images: p.images?.map((img) => ({ ...img, thumbUrl: img.publicId ? cloudinaryUrl(img.publicId, 200) : undefined })),
+    })),
+    total,
+    page,
+    pages: Math.ceil(total / limit),
+  });
 });
 
 const detailsSchema = z.object({

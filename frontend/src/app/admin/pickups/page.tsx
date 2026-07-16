@@ -253,7 +253,7 @@ export default function AdminPickupsPage() {
               {lookup.order.items.map((i, idx) => (
                 <div key={idx} className="flex items-center gap-3 text-sm">
                   <div className="relative h-12 w-9 shrink-0 overflow-hidden rounded-md bg-foreground/5">
-                    {i.image && <Image src={i.image} alt={i.name} fill className="object-cover" />}
+                    {i.image && <Image src={i.image} alt={i.name} fill sizes="36px" className="object-cover" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate">{i.name}</p>

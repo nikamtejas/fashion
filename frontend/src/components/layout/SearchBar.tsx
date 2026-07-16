@@ -84,7 +84,7 @@ export function SearchBar() {
                     className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-foreground/5"
                   >
                     <div className="relative h-10 w-10 overflow-hidden rounded-md bg-foreground/5">
-                      {r.image && <Image src={r.image} alt={r.name} fill className="object-cover" />}
+                      {r.image && <Image src={r.image} alt={r.name} fill sizes="40px" className="object-cover" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{r.name}</p>

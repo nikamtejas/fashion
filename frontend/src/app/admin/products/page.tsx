@@ -13,7 +13,7 @@ interface AdminProduct {
   name: string;
   slug: string;
   status: "DRAFT" | "PUBLISHED";
-  images: { publicId: string; secureUrl: string; type: string }[];
+  images: { publicId: string; secureUrl: string; thumbUrl?: string; type: string }[];
   pricing?: { finalPrice?: number };
   category?: { name: string };
   createdAt: string;
@@ -67,7 +67,7 @@ export default function AdminProductsPage() {
                   <Link href={`/admin/products/new?id=${p._id}`} className="flex items-center gap-3">
                     <div className="relative h-12 w-10 overflow-hidden rounded-md bg-foreground/5">
                       {p.images?.[0] && (
-                        <Image src={p.images[0].secureUrl} alt={p.name} fill className="object-cover" />
+                        <Image src={p.images[0].thumbUrl ?? p.images[0].secureUrl} alt={p.name} fill sizes="40px" className="object-cover" />
                       )}
                     </div>
                     <span className="font-medium">{p.name}</span>

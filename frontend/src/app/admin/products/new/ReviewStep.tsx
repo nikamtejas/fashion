@@ -90,7 +90,7 @@ export function ReviewStep({
         <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
           {(galleryImages.length > 0 ? galleryImages : product.images).map((img) => (
             <div key={img._id} className="relative h-32 w-24 shrink-0 overflow-hidden rounded-lg bg-foreground/5">
-              <Image src={img.secureUrl} alt="" fill className="object-cover" />
+              <Image src={img.secureUrl} alt="" fill sizes="96px" className="object-cover" />
             </div>
           ))}
         </div>

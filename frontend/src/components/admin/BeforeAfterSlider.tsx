@@ -22,10 +22,10 @@ export function BeforeAfterSlider({ before, after, className }: { before: string
       onMouseMove={(e) => e.buttons === 1 && handleMove(e.clientX)}
       onTouchMove={(e) => handleMove(e.touches[0].clientX)}
     >
-      <Image src={before} alt="Before" fill className="object-cover" />
+      <Image src={before} alt="Before" fill sizes="(min-width: 640px) 50vw, 100vw" className="object-cover" />
       <div className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>
         <div className="relative h-full" style={{ width: `${(100 / pct) * 100 || 0}%` }}>
-          <Image src={after} alt="After" fill className="object-cover" />
+          <Image src={after} alt="After" fill sizes="(min-width: 640px) 50vw, 100vw" className="object-cover" />
         </div>
       </div>
       <div

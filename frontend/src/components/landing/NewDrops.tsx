@@ -68,6 +68,7 @@ export function NewDrops({ products }: { products: NewDropProduct[] }) {
                     src={p.image}
                     alt={p.name}
                     fill
+                    sizes="(min-width: 640px) 288px, 256px"
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 )}

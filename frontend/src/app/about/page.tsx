@@ -36,6 +36,8 @@ export default function AboutPage() {
             src="https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=1200&q=80"
             alt="LuxeLoom atelier"
             fill
+            priority
+            sizes="(min-width: 1024px) 50vw, 100vw"
             className="object-cover"
           />
         </div>
