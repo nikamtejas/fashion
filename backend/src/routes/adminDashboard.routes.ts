@@ -58,9 +58,13 @@ router.get("/", async (req, res) => {
   const avgOrderValue = orderCount ? round2(rangeRevenue / orderCount) : 0;
 
   // Everything below only depends on rangeOrders, so hit Atlas once in
-  // parallel instead of paying a round trip per query.
+  // parallel instead of paying a round trip per query — including the
+  // payment-method split (previously issued as its own query afterward,
+  // paying a 3rd sequential Atlas round trip for data that only needed
+  // orderIds, already available at this point).
   const productIds = [...new Set(rangeOrders.flatMap((o) => o.items.map((i) => String(i.product))))];
-  const [products, refunds, customerCount, funnelAgg, recentOrders, lowStockProducts, pendingPickups, pendingRefunds] =
+  const orderIds = rangeOrders.map((o) => o._id);
+  const [products, refunds, customerCount, funnelAgg, recentOrders, lowStockProducts, pendingPickups, pendingRefunds, payments] =
     await Promise.all([
       Product.find({ _id: { $in: productIds } })
         .select("pricing.profitPerUnit category name")
@@ -81,6 +85,7 @@ router.get("/", async (req, res) => {
       // same collection.
       PickupAppointment.countDocuments({ type: "PICKUP", status: { $in: ["BOOKED", "READY"] } }),
       RefundRequest.countDocuments({ status: { $in: ["REQUESTED", "APPROVED", "ITEM_PICKED_UP", "RECEIVED"] } }),
+      Payment.find({ order: { $in: orderIds } }).select("method order").lean(),
     ]);
 
   // True profit from the M3 breakdown stored on each product, minus the
@@ -136,8 +141,6 @@ router.get("/", async (req, res) => {
   const topProducts = [...byProduct.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
 
   // Payment-method split.
-  const orderIds = rangeOrders.map((o) => o._id);
-  const payments = await Payment.find({ order: { $in: orderIds } }).select("method order").lean();
   const totalByOrder = new Map(rangeOrders.map((o) => [String(o._id), o.pricing.total]));
   const byMethod = new Map<string, number>();
   for (const p of payments) {

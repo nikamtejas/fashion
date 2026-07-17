@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
@@ -28,8 +29,24 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const toggleFavorite = useFavoritesStore((s) => s.toggle);
   const addItem = useCartStore((s) => s.addItem);
   const [adding, setAdding] = React.useState(false);
+  // Tracks whether the inline "Add to bag" button (below) is still on
+  // screen — once a shopper scrolls past it to read the description or
+  // reviews, the fixed mobile bar takes over so buying never requires
+  // scrolling back up.
+  const [inlineCtaVisible, setInlineCtaVisible] = React.useState(true);
+  const inlineCtaRef = React.useRef<HTMLDivElement>(null);
 
   const [sizeGuideOpen, setSizeGuideOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const el = inlineCtaRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => setInlineCtaVisible(entry.isIntersecting), {
+      rootMargin: "-64px 0px 0px 0px", // account for the sticky navbar
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   React.useEffect(() => {
     recordView(product.slug);
@@ -188,7 +205,7 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
                 : "Select a size"}
           </p>
 
-          <div className="mt-6 flex gap-3">
+          <div ref={inlineCtaRef} className="mt-6 flex gap-3">
             <Button size="lg" className="flex-1" onClick={handleAddToBag} disabled={!inStock || adding}>
               {adding ? "Adding…" : inStock ? "Add to bag" : "Out of stock"}
             </Button>
@@ -217,6 +234,28 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
       <ReviewsSection slug={product.slug} />
 
       <SizeGuideModal open={sizeGuideOpen} onOpenChange={setSizeGuideOpen} />
+
+      <AnimatePresence>
+        {!inlineCtaVisible && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden"
+          >
+            <div className="mx-auto flex max-w-7xl items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{product.name}</p>
+                <p className="text-sm text-foreground/60">₹{product.pricing.finalPrice.toLocaleString("en-IN")}</p>
+              </div>
+              <Button size="lg" onClick={handleAddToBag} disabled={!inStock || adding}>
+                {adding ? "Adding…" : inStock ? "Add to bag" : "Out of stock"}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

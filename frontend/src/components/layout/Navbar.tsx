@@ -44,7 +44,7 @@ export function Navbar() {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-1 px-4 sm:h-20 sm:gap-2 sm:px-6 lg:px-8">
         <button
-          className="shrink-0 rounded-full p-1.5 hover:bg-foreground/5 sm:p-2 md:hidden"
+          className="shrink-0 rounded-full p-2 hover:bg-foreground/5 md:hidden"
           aria-label="Open menu"
           onClick={() => setMobileOpen((v) => !v)}
         >
@@ -64,7 +64,7 @@ export function Navbar() {
           <Link
             href="/favorites"
             aria-label="Favorites"
-            className="relative rounded-full p-1.5 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground sm:p-2"
+            className="relative rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             <Heart className="h-5 w-5" />
             <IconCount count={favoritesCount} />
@@ -72,7 +72,7 @@ export function Navbar() {
           <button
             onClick={openCartDrawer}
             aria-label="Cart"
-            className="relative rounded-full p-1.5 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground sm:p-2"
+            className="relative rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             <ShoppingBag className="h-5 w-5" />
             <IconCount count={cartCount} />

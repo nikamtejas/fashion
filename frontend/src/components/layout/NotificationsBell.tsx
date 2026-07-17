@@ -76,7 +76,7 @@ export function NotificationsBell() {
       <button
         onClick={openPanel}
         aria-label="Notifications"
-        className="relative rounded-full p-1.5 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground sm:p-2"
+        className="relative rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (

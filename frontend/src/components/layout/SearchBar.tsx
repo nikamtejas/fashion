@@ -50,7 +50,7 @@ export function SearchBar() {
       <button
         aria-label="Search"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-full p-1.5 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground sm:p-2"
+        className="rounded-full p-2 text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground"
       >
         {open ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
       </button>
