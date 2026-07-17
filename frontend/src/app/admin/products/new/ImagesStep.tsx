@@ -202,11 +202,9 @@ export function ImagesStep({
         <div className="grid grid-cols-1 gap-4 sm:max-w-md sm:grid-cols-2">
           <div>
             <PhotoDropzone label="Front" currentUrl={front?.secureUrl} onSelect={(uri) => handleUploadOriginal("FRONT", uri)} />
-            {coverControl(front)}
           </div>
           <div>
             <PhotoDropzone label="Back" currentUrl={back?.secureUrl} onSelect={(uri) => handleUploadOriginal("BACK", uri)} />
-            {coverControl(back)}
           </div>
         </div>
       </div>

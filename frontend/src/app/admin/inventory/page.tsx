@@ -26,11 +26,15 @@ export default function AdminInventoryPage() {
     const handle = setTimeout(() => {
       // Debounced search; setState in the async callback.
        
-      apiFetch<{ products: InventoryProduct[] }>(`/api/admin/inventory?q=${encodeURIComponent(q)}`).then((d) =>
-        setProducts(d.products)
-      );
+      apiFetch<{ products: InventoryProduct[] }>(`/api/admin/inventory?q=${encodeURIComponent(q)}`)
+        .then((d) => setProducts(d.products))
+        .catch((err) => {
+          setProducts([]);
+          toast({ title: "Couldn't load inventory", description: err instanceof Error ? err.message : undefined, variant: "error" });
+        });
     }, 200);
     return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   async function saveStock(productId: string, sku: string, stock: number) {

@@ -7,6 +7,83 @@ import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 100 }, (_, i) => CURRENT_YEAR - i);
+const selectClass =
+  "h-12 min-w-0 rounded-lg border border-border bg-surface px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent";
+
+/** Native `<input type="date">` renders its own internal day/month/year
+ * segments + calendar icon with a browser-controlled minimum width that
+ * `width: 100%` can't override — on some mobile browsers a filled-in value
+ * overflowed its card no matter how it was padded/styled. Plain `<select>`s
+ * have no such quirk, so this is the only way to actually guarantee it
+ * fits, on every device, rather than fighting native widget internals. */
+function DateOfBirthField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [year, month, day] = value ? value.split("-") : ["", "", ""];
+
+  function update(next: { year?: string; month?: string; day?: string }) {
+    const y = next.year ?? year;
+    const m = next.month ?? month;
+    const d = next.day ?? day;
+    onChange(y && m && d ? `${y}-${m}-${d}` : "");
+  }
+
+  const daysInMonth = year && month ? new Date(Number(year), Number(month), 0).getDate() : 31;
+  const days = Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, "0"));
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-medium uppercase tracking-wider text-foreground/70">Date of birth</label>
+      <div className="grid grid-cols-3 gap-2">
+        <select
+          aria-label="Day"
+          value={day}
+          onChange={(e) => update({ day: e.target.value })}
+          className={cn(selectClass, !day && "text-foreground/40")}
+        >
+          <option value="">Day</option>
+          {days.map((d) => (
+            <option key={d} value={d}>
+              {Number(d)}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Month"
+          value={month}
+          onChange={(e) => update({ month: e.target.value })}
+          className={cn(selectClass, !month && "text-foreground/40")}
+        >
+          <option value="">Month</option>
+          {MONTHS.map((m, i) => (
+            <option key={m} value={String(i + 1).padStart(2, "0")}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Year"
+          value={year}
+          onChange={(e) => update({ year: e.target.value })}
+          className={cn(selectClass, !year && "text-foreground/40")}
+        >
+          <option value="">Year</option>
+          {YEARS.map((y) => (
+            <option key={y} value={String(y)}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
 
 export function PersonalInfoSection() {
   const { user, refresh } = useAuth();
@@ -72,13 +149,7 @@ export function PersonalInfoSection() {
       <form onSubmit={handleSave} className="space-y-4 rounded-2xl border border-border p-5">
         <Input label="Email" value={user?.email ?? ""} disabled />
         <Input label="Full name" required value={name} onChange={(e) => setName(e.target.value)} />
-        <Input
-          type="date"
-          label="Date of birth"
-          max={new Date().toISOString().slice(0, 10)}
-          value={dob}
-          onChange={(e) => setDob(e.target.value)}
-        />
+        <DateOfBirthField value={dob} onChange={setDob} />
         <Button type="submit" size="sm" disabled={saving} magnetic={false}>
           {saving ? "Saving…" : "Save changes"}
         </Button>

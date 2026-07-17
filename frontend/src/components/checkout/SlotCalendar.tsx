@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import type { SlotDay } from "./types";
 
@@ -22,18 +23,38 @@ export function SlotCalendar({
 }) {
   const [days, setDays] = React.useState<SlotDay[] | null>(null);
   const [activeDate, setActiveDate] = React.useState<string | null>(null);
+  const [error, setError] = React.useState(false);
+  const [retryCount, setRetryCount] = React.useState(0);
+  const { toast } = useToast();
 
   React.useEffect(() => {
     // Refetch slots when the store changes — the reset to the loading state
     // must be synchronous so stale slots never show for the new store.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDays(null);
-    apiFetch<{ days: SlotDay[] }>(`/api/stores/${storeId}/slots`).then((data) => {
-      setDays(data.days);
-      const firstWithSlot = data.days.find((d) => d.slots.some((s) => s.available));
-      setActiveDate(firstWithSlot?.date ?? data.days[0]?.date ?? null);
-    });
-  }, [storeId]);
+    setError(false);
+    apiFetch<{ days: SlotDay[] }>(`/api/stores/${storeId}/slots`)
+      .then((data) => {
+        setDays(data.days);
+        const firstWithSlot = data.days.find((d) => d.slots.some((s) => s.available));
+        setActiveDate(firstWithSlot?.date ?? data.days[0]?.date ?? null);
+      })
+      .catch((err) => {
+        setError(true);
+        toast({ title: "Couldn't load pickup slots", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+  }, [storeId, retryCount, toast]);
+
+  if (error) {
+    return (
+      <div className="text-sm text-foreground/50">
+        Couldn&apos;t load pickup slots.{" "}
+        <button type="button" onClick={() => setRetryCount((n) => n + 1)} className="text-accent underline underline-offset-2">
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   if (days === null) return <p className="text-sm text-foreground/50">Loading slots…</p>;
 

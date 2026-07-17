@@ -27,7 +27,10 @@ export function LookbookGrid() {
                 sizes="(min-width: 640px) 33vw, 50vw"
                 className="w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="absolute inset-0 flex items-end bg-gradient-to-t from-ink/60 via-transparent to-transparent p-4 opacity-0 transition-opacity group-hover:opacity-100">
+              {/* Hover-only caption never appeared at all on touch devices
+                  (no real hover) — always shown below lg, hover-reveal above
+                  it where a mouse is typical. */}
+              <div className="absolute inset-0 flex items-end bg-gradient-to-t from-ink/60 via-transparent to-transparent p-4 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100">
                 <span className="text-sm text-ivory">{look.caption}</span>
               </div>
             </div>

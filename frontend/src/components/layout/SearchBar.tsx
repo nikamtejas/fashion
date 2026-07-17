@@ -30,16 +30,27 @@ export function SearchBar() {
     // documented data-fetching-effect pattern, not a derivable value.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
+    // A slow earlier request could otherwise resolve after a faster later
+    // one and clobber its results with a stale, mismatched query's data —
+    // abort it instead once a newer query supersedes it.
+    const controller = new AbortController();
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_URL}/api/search/suggest?q=${encodeURIComponent(trimmedQuery)}`);
+        const res = await fetch(`${API_URL}/api/search/suggest?q=${encodeURIComponent(trimmedQuery)}`, {
+          signal: controller.signal,
+        });
         const data = await res.json();
         setResults(data.results ?? []);
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") setResults([]);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }, 250);
-    return () => clearTimeout(handle);
+    return () => {
+      clearTimeout(handle);
+      controller.abort();
+    };
   }, [trimmedQuery]);
 
   const visibleResults = trimmedQuery.length < 2 ? [] : results;

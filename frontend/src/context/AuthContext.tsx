@@ -63,10 +63,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const logout = React.useCallback(async () => {
-    await apiFetch("/api/auth/logout", { method: "POST" });
-    setUser(null);
-    useFavoritesStore.getState().clear();
-    useCartStore.getState().clear();
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // A flaky connection or already-expired session shouldn't trap the
+      // user in a stuck "still looks logged in" state — clear local state
+      // regardless; a fresh login re-establishes the session either way.
+    } finally {
+      setUser(null);
+      useFavoritesStore.getState().clear();
+      useCartStore.getState().clear();
+    }
   }, []);
 
   return <AuthContext.Provider value={{ user, loading, refresh, logout }}>{children}</AuthContext.Provider>;

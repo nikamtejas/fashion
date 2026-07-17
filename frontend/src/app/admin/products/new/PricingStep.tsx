@@ -35,6 +35,8 @@ function AnimatedAmount({ value, className }: { value: number; className?: strin
   );
 }
 
+type EditableCostLine = CostLine & { _key: string };
+
 function CostLineRows({
   label,
   addLabel,
@@ -43,15 +45,15 @@ function CostLineRows({
 }: {
   label: string;
   addLabel: string;
-  lines: CostLine[];
-  onChange: (lines: CostLine[]) => void;
+  lines: EditableCostLine[];
+  onChange: (lines: EditableCostLine[]) => void;
 }) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wider text-foreground/70">{label}</p>
       <div className="mt-2 space-y-2">
         {lines.map((line, i) => (
-          <div key={i} className="flex gap-2">
+          <div key={line._key} className="flex gap-2">
             <input
               value={line.name}
               onChange={(e) => {
@@ -87,7 +89,7 @@ function CostLineRows({
       </div>
       <button
         type="button"
-        onClick={() => onChange([...lines, { name: "", value: 0 }])}
+        onClick={() => onChange([...lines, { name: "", value: 0, _key: crypto.randomUUID() }])}
         className="mt-2 flex items-center gap-1 text-xs text-accent hover:underline"
       >
         <Plus className="h-3 w-3" /> {addLabel}
@@ -113,10 +115,19 @@ export function PricingStep({
   const [purchasePrice, setPurchasePrice] = React.useState(p?.purchasePrice || 0);
   const [marginType, setMarginType] = React.useState<MarginType>(p?.marginType ?? "PERCENTAGE");
   const [marginValue, setMarginValue] = React.useState(p?.marginValue || 30);
-  const [fixedCosts, setFixedCosts] = React.useState<CostLine[]>(
-    p?.fixedCosts?.length ? p.fixedCosts : [{ name: "Packaging", value: 0 }]
+  // _key is a client-only stable identity for React's key prop (added rows
+  // — and rows loaded from a saved product, which have no id of their own —
+  // otherwise had to key off array index, so deleting a middle row reused
+  // the wrong DOM/input node for the remaining rows). Stripped before save.
+  const [fixedCosts, setFixedCosts] = React.useState<EditableCostLine[]>(
+    (p?.fixedCosts?.length ? p.fixedCosts : [{ name: "Packaging", value: 0 }]).map((l) => ({
+      ...l,
+      _key: crypto.randomUUID(),
+    }))
   );
-  const [customParams, setCustomParams] = React.useState<CostLine[]>(p?.customParams ?? []);
+  const [customParams, setCustomParams] = React.useState<EditableCostLine[]>(
+    (p?.customParams ?? []).map((l) => ({ ...l, _key: crypto.randomUUID() }))
+  );
   const [gstOverride, setGstOverride] = React.useState<number | undefined>(
     p?.gstRate && p.gstRate !== p.suggestedGstRate ? p.gstRate : undefined
   );
@@ -180,8 +191,8 @@ export function PricingStep({
             purchasePrice,
             marginType,
             marginValue,
-            fixedCosts: fixedCosts.filter((l) => l.name.trim() || l.value),
-            customParams: customParams.filter((l) => l.name.trim() || l.value),
+            fixedCosts: fixedCosts.filter((l) => l.name.trim() || l.value).map(({ name, value }) => ({ name, value })),
+            customParams: customParams.filter((l) => l.name.trim() || l.value).map(({ name, value }) => ({ name, value })),
             gstRate: gstOverride,
             gstInclusive,
             taxType,

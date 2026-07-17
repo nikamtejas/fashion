@@ -97,7 +97,11 @@ export function ProductCard({ product, priority }: { product: ShopProduct; prior
               e.preventDefault();
               setQuickAddOpen(true);
             }}
-            className="absolute inset-x-3 bottom-3 translate-y-4 rounded-full bg-ink py-2.5 text-xs font-medium uppercase tracking-wider text-ivory opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 dark:bg-ivory dark:text-ink"
+            // Hover-reveal only makes sense with a mouse — on touch/tablet
+            // (no real hover) and for keyboard users the button never got
+            // group-hover, making Quick Add unreachable outside a desktop
+            // mouse. Always shown below lg; hover/focus-reveal above it.
+            className="absolute inset-x-3 bottom-3 translate-y-0 rounded-full bg-ink py-2.5 text-xs font-medium uppercase tracking-wider text-ivory opacity-100 transition-all duration-200 dark:bg-ivory dark:text-ink lg:translate-y-4 lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100 lg:group-focus-within:translate-y-0 lg:group-focus-within:opacity-100"
           >
             Quick add
           </button>

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { apiFetch } from "@/lib/api";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 interface Customer {
   id: string;
@@ -15,19 +16,25 @@ interface Customer {
 }
 
 export default function AdminCustomersPage() {
+  const { toast } = useToast();
   const [customers, setCustomers] = React.useState<Customer[] | null>(null);
 
   React.useEffect(() => {
-    apiFetch<{ customers: Customer[] }>("/api/admin/customers").then((d) =>
-      setCustomers([...d.customers].sort((a, b) => b.lifetimeValue - a.lifetimeValue))
-    );
+    apiFetch<{ customers: Customer[] }>("/api/admin/customers")
+      .then((d) => setCustomers([...d.customers].sort((a, b) => b.lifetimeValue - a.lifetimeValue)))
+      .catch((err) => {
+        setCustomers([]);
+        toast({ title: "Couldn't load customers", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div>
       <h1 className="font-display text-2xl">Customers</h1>
       {customers === null && <Skeleton className="mt-6 h-48 w-full" />}
-      {customers && (
+      {customers?.length === 0 && <p className="mt-8 text-sm text-foreground/50">No customers yet.</p>}
+      {customers && customers.length > 0 && (
         <div className="mt-6 overflow-x-auto rounded-2xl border border-border">
           <table className="w-full text-sm">
             <thead className="bg-surface text-left text-xs uppercase tracking-wider text-foreground/50">

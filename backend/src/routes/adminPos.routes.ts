@@ -8,6 +8,7 @@ import { Order } from "../models/Order";
 import { Payment } from "../models/Payment";
 import { ensureInvoiceForOrder } from "../services/invoice.service";
 import { cloudinaryUrl } from "../lib/cloudinary";
+import { escapeRegex } from "../lib/escapeRegex";
 
 const router = Router();
 router.use(requireAdmin);
@@ -110,7 +111,7 @@ class PosError extends Error {}
 router.get("/products", async (req, res) => {
   const q = (req.query.q as string | undefined)?.trim() ?? "";
   const query: Record<string, unknown> = { status: "PUBLISHED" };
-  if (q) query.name = { $regex: q, $options: "i" };
+  if (q) query.name = { $regex: escapeRegex(q), $options: "i" };
 
   const products = await Product.find(query)
     .limit(10)

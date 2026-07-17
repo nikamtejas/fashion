@@ -4,6 +4,7 @@ import { Category } from "../models/Category";
 import { Review } from "../models/Review";
 import { requireAuth } from "../middleware/auth";
 import { cloudinaryUrl } from "../lib/cloudinary";
+import { escapeRegex } from "../lib/escapeRegex";
 import { z } from "zod";
 
 const router = Router();
@@ -72,13 +73,17 @@ router.get("/", async (req, res) => {
   if (sub) query.tags = sub;
   if (size) query["variants.size"] = { $in: size.split(",") };
   if (color) query["variants.color"] = { $in: color.split(",") };
-  if (minPrice || maxPrice) {
+  // A malformed value silently matched nothing (Number("abc") -> NaN -> a
+  // $gte/$lte the query can never satisfy) instead of just being ignored.
+  const min = minPrice ? Number(minPrice) : undefined;
+  const max = maxPrice ? Number(maxPrice) : undefined;
+  if ((min !== undefined && !Number.isNaN(min)) || (max !== undefined && !Number.isNaN(max))) {
     query["pricing.finalPrice"] = {
-      ...(minPrice ? { $gte: Number(minPrice) } : {}),
-      ...(maxPrice ? { $lte: Number(maxPrice) } : {}),
+      ...(min !== undefined && !Number.isNaN(min) ? { $gte: min } : {}),
+      ...(max !== undefined && !Number.isNaN(max) ? { $lte: max } : {}),
     };
   }
-  if (q) query.name = { $regex: q, $options: "i" };
+  if (q) query.name = { $regex: escapeRegex(q), $options: "i" };
 
   const sortMap: Record<string, Record<string, 1 | -1>> = {
     new: { createdAt: -1 },

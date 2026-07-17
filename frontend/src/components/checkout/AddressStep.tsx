@@ -32,19 +32,40 @@ export function AddressStep({
   const [form, setForm] = React.useState<AddressForm>(EMPTY_FORM);
   const [serviceability, setServiceability] = React.useState<{ pincode: string; serviceable: boolean; etaDays?: number; message?: string } | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [loadError, setLoadError] = React.useState(false);
+  const [retryCount, setRetryCount] = React.useState(0);
 
   React.useEffect(() => {
-    apiFetch<{ addresses: SavedAddress[] }>("/api/addresses").then((data) => {
-      setAddresses(data.addresses);
-      const def = data.addresses.find((a) => a.isDefault) ?? data.addresses[0];
-      if (def) {
-        setSelectedId(def._id);
-        checkServiceability(def.pincode);
-      } else {
-        setShowForm(true);
-      }
-    });
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadError(false);
+    apiFetch<{ addresses: SavedAddress[] }>("/api/addresses")
+      .then((data) => {
+        setAddresses(data.addresses);
+        const def = data.addresses.find((a) => a.isDefault) ?? data.addresses[0];
+        if (def) {
+          setSelectedId(def._id);
+          checkServiceability(def.pincode);
+        } else {
+          setShowForm(true);
+        }
+      })
+      .catch((err) => {
+        setLoadError(true);
+        toast({ title: "Couldn't load your addresses", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryCount]);
+
+  if (loadError) {
+    return (
+      <div className="text-sm text-foreground/50">
+        Couldn&apos;t load your saved addresses.{" "}
+        <button type="button" onClick={() => setRetryCount((n) => n + 1)} className="text-accent underline underline-offset-2">
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   async function checkServiceability(pincode: string) {
     if (!/^\d{6}$/.test(pincode)) return;

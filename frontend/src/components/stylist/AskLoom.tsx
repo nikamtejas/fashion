@@ -52,7 +52,12 @@ export function AskLoom() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Ask Loom, the AI stylist"
-        className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-ivory shadow-xl transition-transform hover:scale-105 dark:bg-ivory dark:text-ink"
+        // Below lg, the product page's sticky "Add to bag" bar sits flush
+        // against the bottom edge — clear it instead of floating on top of
+        // it. Only that page has a bottom bar today, but keeping this
+        // offset global (rather than page-aware) is simpler and the extra
+        // clearance elsewhere is barely noticeable.
+        className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-ivory shadow-xl transition-transform hover:scale-105 dark:bg-ivory dark:text-ink lg:bottom-5"
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
       </button>
@@ -64,7 +69,7 @@ export function AskLoom() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            className="fixed bottom-24 right-5 z-40 flex h-[520px] w-[360px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl"
+            className="fixed bottom-44 right-5 z-40 flex h-[520px] w-[360px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl lg:bottom-24"
           >
             <div className="border-b border-border px-4 py-3">
               <p className="font-display text-lg">Ask Loom</p>

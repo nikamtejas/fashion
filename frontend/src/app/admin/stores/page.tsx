@@ -6,6 +6,16 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 
+// _key is a client-only stable identity for React's key prop, assigned when
+// a store loads (or a window is added) — using the array index instead
+// reused the wrong <input> for the remaining rows after deleting a window
+// from the middle of the list. Stripped before save().
+interface TimeWindow {
+  start: string;
+  end: string;
+  _key: string;
+}
+
 interface AdminStore {
   _id: string;
   name: string;
@@ -13,22 +23,26 @@ interface AdminStore {
   lat?: number;
   lng?: number;
   pickupConfig?: {
-    windows: { start: string; end: string }[];
+    windows: TimeWindow[];
     capacityPerSlot: number;
     sameDayReadyHours: number;
   };
 }
 
+function withKeys(windows: { start: string; end: string }[]): TimeWindow[] {
+  return windows.map((w) => ({ ...w, _key: crypto.randomUUID() }));
+}
+
 const EMPTY_STORE = { name: "", address: "", city: "", state: "", pincode: "", phone: "", lat: "", lng: "" };
 
 const DEFAULT_CONFIG = {
-  windows: [
+  windows: withKeys([
     { start: "10:00", end: "12:00" },
     { start: "12:00", end: "14:00" },
     { start: "14:00", end: "16:00" },
     { start: "16:00", end: "18:00" },
     { start: "18:00", end: "20:00" },
-  ],
+  ]),
   capacityPerSlot: 4,
   sameDayReadyHours: 3,
 };
@@ -42,7 +56,13 @@ export default function AdminStoresPage() {
 
   React.useEffect(() => {
     apiFetch<{ stores: AdminStore[] }>("/api/admin/stores")
-      .then((data) => setStores(data.stores))
+      .then((data) =>
+        setStores(
+          data.stores.map((s) =>
+            s.pickupConfig ? { ...s, pickupConfig: { ...s.pickupConfig, windows: withKeys(s.pickupConfig.windows) } } : s
+          )
+        )
+      )
       .catch((err) => {
         setStores([]);
         toast({ title: "Couldn't load stores", description: err instanceof Error ? err.message : undefined, variant: "error" });
@@ -97,9 +117,10 @@ export default function AdminStoresPage() {
   async function save(store: AdminStore) {
     setSaving(store._id);
     try {
+      const config = store.pickupConfig ?? DEFAULT_CONFIG;
       await apiFetch(`/api/admin/stores/${store._id}/pickup-config`, {
         method: "PATCH",
-        json: store.pickupConfig ?? DEFAULT_CONFIG,
+        json: { ...config, windows: config.windows.map(({ start, end }) => ({ start, end })) },
       });
       toast({ title: `${store.name} slot config saved`, variant: "success" });
     } catch (err) {
@@ -147,7 +168,7 @@ export default function AdminStoresPage() {
               <p className="mt-4 text-xs font-medium uppercase tracking-wider text-foreground/50">Time windows</p>
               <div className="mt-2 space-y-2">
                 {config.windows.map((w, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={w._key} className="flex items-center gap-2">
                     <input
                       type="time"
                       value={w.start}
@@ -182,7 +203,10 @@ export default function AdminStoresPage() {
                 ))}
                 <button
                   onClick={() =>
-                    update(store._id, (c) => ({ ...c, windows: [...c.windows, { start: "18:00", end: "20:00" }] }))
+                    update(store._id, (c) => ({
+                      ...c,
+                      windows: [...c.windows, { start: "18:00", end: "20:00", _key: crypto.randomUUID() }],
+                    }))
                   }
                   className="flex items-center gap-1 text-xs text-accent hover:underline"
                 >

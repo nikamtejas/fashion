@@ -16,6 +16,7 @@ import { buildShippingLabel } from "../lib/shippingLabel";
 import { notifyUser } from "../services/notify.service";
 import { sendDeliveredEmail } from "../services/orderEmails.service";
 import { orderSubject } from "../lib/orderSubject";
+import { escapeRegex } from "../lib/escapeRegex";
 
 const router = Router();
 router.use(requireAdmin);
@@ -97,8 +98,9 @@ router.get("/", async (req, res) => {
   if (q) {
     // Search by order number, or by customer email (resolved to user ids).
     const { User } = await import("../models/User.js");
-    const users = await User.find({ email: { $regex: q, $options: "i" } }).select("_id").limit(20).lean();
-    query.$or = [{ orderNumber: { $regex: q, $options: "i" } }, { user: { $in: users.map((u) => u._id) } }];
+    const safeQ = escapeRegex(q);
+    const users = await User.find({ email: { $regex: safeQ, $options: "i" } }).select("_id").limit(20).lean();
+    query.$or = [{ orderNumber: { $regex: safeQ, $options: "i" } }, { user: { $in: users.map((u) => u._id) } }];
   }
 
   const orders = await Order.find(query)

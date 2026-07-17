@@ -30,6 +30,18 @@ const ORDINAL = ["#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#256abf
 const CATEGORY_SLOT: Record<string, string> = { Men: SERIES[0], Women: SERIES[1], Accessories: SERIES[2], Footwear: SERIES[3] };
 const METHOD_SLOT: Record<string, string> = { RAZORPAY: SERIES[0], COD: SERIES[1], SNAPMINT: SERIES[2], CASH: SERIES[3], CARD: SERIES[4], UPI: SERIES[5] };
 
+// Recharts' Tooltip defaults to a plain white popup with near-black text —
+// theme it off the same CSS variables the axis ticks already use, otherwise
+// every chart pops a stark white box in dark mode.
+const TOOLTIP_CONTENT_STYLE: React.CSSProperties = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  color: "var(--foreground)",
+};
+const TOOLTIP_LABEL_STYLE: React.CSSProperties = { color: "var(--foreground)" };
+const TOOLTIP_ITEM_STYLE: React.CSSProperties = { color: "var(--foreground)" };
+
 interface DashboardData {
   range: { from: string; to: string };
   kpis: {
@@ -142,7 +154,12 @@ export default function AdminDashboardPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--foreground)" }} tickLine={false} axisLine={{ stroke: "var(--border)" }} tickFormatter={(d: string) => d.slice(5)} />
             <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} tickLine={false} axisLine={false} width={56} tickFormatter={(v: number) => `₹${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`} />
-            <Tooltip formatter={(v) => inr(Number(v))} labelStyle={{ color: "#141414" }} />
+            <Tooltip
+              formatter={(v) => inr(Number(v))}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
+              labelStyle={TOOLTIP_LABEL_STYLE}
+              itemStyle={TOOLTIP_ITEM_STYLE}
+            />
             <Area type="monotone" dataKey="revenue" stroke={SERIES[0]} strokeWidth={2} fill={SERIES[0]} fillOpacity={0.14} name="Revenue" />
           </AreaChart>
         </ResponsiveContainer>
@@ -151,21 +168,28 @@ export default function AdminDashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Sales by category */}
         <ChartCard title="Sales by category">
-          <div className="flex items-center gap-4">
-            <ResponsiveContainer width="55%" height={220}>
-              <PieChart>
-                <Pie data={data.categorySeries} dataKey="revenue" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2} stroke="var(--surface)" strokeWidth={2}>
-                  {data.categorySeries.map((entry, i) => (
-                    <Cell key={entry.name} fill={CATEGORY_SLOT[entry.name] ?? SERIES[i % SERIES.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => inr(Number(v))} />
-              </PieChart>
-            </ResponsiveContainer>
-            <ul className="space-y-1.5 text-xs">
+          {/* The pie's radius is fixed in pixels (Recharts doesn't scale it
+              with container size), so squeezing it into 55% of a narrow
+              phone's width alongside the legend clipped it — give it its
+              own full-width row on mobile and only sit it side-by-side with
+              the legend once there's room (sm+). */}
+          <div className="flex flex-col items-center gap-4 sm:flex-row">
+            <div className="w-full sm:w-[55%]">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={data.categorySeries} dataKey="revenue" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2} stroke="var(--surface)" strokeWidth={2}>
+                    {data.categorySeries.map((entry, i) => (
+                      <Cell key={entry.name} fill={CATEGORY_SLOT[entry.name] ?? SERIES[i % SERIES.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v) => inr(Number(v))} contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <ul className="w-full space-y-1.5 text-xs sm:w-auto">
               {data.categorySeries.map((c, i) => (
                 <li key={c.name} className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CATEGORY_SLOT[c.name] ?? SERIES[i % SERIES.length] }} />
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: CATEGORY_SLOT[c.name] ?? SERIES[i % SERIES.length] }} />
                   <span className="text-foreground/70">{c.name}</span>
                   <span className="ml-auto tabular-nums">{inr(c.revenue)}</span>
                 </li>
@@ -180,7 +204,7 @@ export default function AdminDashboardPage() {
             <BarChart data={data.paymentSeries} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 8 }}>
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="method" width={80} tick={{ fontSize: 10, fill: "var(--foreground)" }} tickLine={false} axisLine={false} />
-              <Tooltip formatter={(v) => inr(Number(v))} />
+              <Tooltip formatter={(v) => inr(Number(v))} contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
               <Bar dataKey="revenue" barSize={14} radius={[0, 4, 4, 0]} name="Revenue">
                 {data.paymentSeries.map((entry) => (
                   <Cell key={entry.method} fill={METHOD_SLOT[entry.method] ?? SERIES[7]} />
@@ -197,7 +221,7 @@ export default function AdminDashboardPage() {
             <BarChart data={data.topProducts} layout="vertical" margin={{ top: 0, right: 56, bottom: 0, left: 8 }}>
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10, fill: "var(--foreground)" }} tickLine={false} axisLine={false} />
-              <Tooltip formatter={(v) => inr(Number(v))} />
+              <Tooltip formatter={(v) => inr(Number(v))} contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
               <Bar dataKey="revenue" barSize={12} radius={[0, 4, 4, 0]} fill={SERIES[0]} name="Revenue">
                 <LabelList dataKey="revenue" position="right" formatter={(v: React.ReactNode) => inr(Number(v))} style={{ fontSize: 10, fill: "var(--foreground)" }} />
               </Bar>
@@ -211,7 +235,7 @@ export default function AdminDashboardPage() {
             <BarChart data={data.funnel} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 8 }}>
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="stage" width={130} tick={{ fontSize: 10, fill: "var(--foreground)" }} tickLine={false} axisLine={false} tickFormatter={(s: string) => s.replaceAll("_", " ")} />
-              <Tooltip />
+              <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
               <Bar dataKey="count" barSize={12} radius={[0, 4, 4, 0]} name="Orders">
                 {data.funnel.map((entry, i) => (
                   <Cell key={entry.stage} fill={ORDINAL[Math.min(i, ORDINAL.length - 1)]} />

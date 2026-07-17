@@ -19,11 +19,25 @@ const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const REVENUE_STATUSES = { $nin: ["PENDING_PAYMENT", "CANCELLED"] as const };
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+// Malformed from/to (bad format, or a value that still produces an Invalid
+// Date) used to silently flow into the Order query and the daily-bucket
+// loop below as NaN, rendering an empty dashboard instead of either using
+// the default range or telling the caller the input was bad.
 function parseRange(req: { query: Record<string, unknown> }): { from: Date; to: Date } {
-  const to = req.query.to ? new Date(`${req.query.to}T23:59:59`) : new Date();
-  const from = req.query.from
-    ? new Date(`${req.query.from}T00:00:00`)
-    : new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000);
+  const toRaw = req.query.to;
+  const to =
+    typeof toRaw === "string" && DATE_ONLY.test(toRaw) && !Number.isNaN(new Date(`${toRaw}T23:59:59`).getTime())
+      ? new Date(`${toRaw}T23:59:59`)
+      : new Date();
+
+  const fromRaw = req.query.from;
+  const from =
+    typeof fromRaw === "string" && DATE_ONLY.test(fromRaw) && !Number.isNaN(new Date(`${fromRaw}T00:00:00`).getTime())
+      ? new Date(`${fromRaw}T00:00:00`)
+      : new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000);
+
   return { from, to };
 }
 

@@ -6,6 +6,7 @@ import { checkAlertsForProduct } from "../services/alerts.service";
 import { notifyAdmins } from "../services/notify.service";
 import { env } from "../config/env";
 import { cloudinaryUrl } from "../lib/cloudinary";
+import { escapeRegex } from "../lib/escapeRegex";
 
 const router = Router();
 router.use(requireAdmin);
@@ -13,7 +14,7 @@ router.use(requireAdmin);
 router.get("/", async (req, res) => {
   const q = (req.query.q as string | undefined)?.trim();
   const query: Record<string, unknown> = {};
-  if (q) query.name = { $regex: q, $options: "i" };
+  if (q) query.name = { $regex: escapeRegex(q), $options: "i" };
 
   const products = await Product.find(query).select("name slug status variants images").sort({ name: 1 }).lean();
   res.json({
