@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Sparkles, RotateCcw, Trash2, Upload, AlertTriangle, CheckCircle2, Star } from "lucide-react";
 import { apiFetch, API_URL } from "@/lib/api";
-import { fileToDataUri } from "@/lib/imageQuality";
+import { fileToDataUri, compressImageForUpload } from "@/lib/imageQuality";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { PhotoDropzone } from "@/components/admin/PhotoDropzone";
@@ -182,7 +182,8 @@ export function ImagesStep({
   }
 
   async function handleReplaceOwnPhoto(image: WizardImage, file: File) {
-    const dataUri = await fileToDataUri(file);
+    const raw = await fileToDataUri(file);
+    const dataUri = await compressImageForUpload(raw);
     await apiFetch(`/api/admin/products/${product._id}/images`, {
       method: "POST",
       json: { dataUri, type: image.type, side: image.side, slot: image.slot, replaceImageId: image._id },

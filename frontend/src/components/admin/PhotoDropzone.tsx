@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { Camera, Upload, AlertTriangle } from "lucide-react";
-import { fileToDataUri, checkImageQuality, type QualityWarning } from "@/lib/imageQuality";
+import { fileToDataUri, compressImageForUpload, checkImageQuality, type QualityWarning } from "@/lib/imageQuality";
 import { cn } from "@/lib/utils";
 
 export function PhotoDropzone({
@@ -20,12 +20,19 @@ export function PhotoDropzone({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [warnings, setWarnings] = React.useState<QualityWarning[]>([]);
   const [dragOver, setDragOver] = React.useState(false);
+  const [processing, setProcessing] = React.useState(false);
 
   async function handleFile(file: File | undefined | null) {
     if (!file) return;
-    const dataUri = await fileToDataUri(file);
-    setWarnings(await checkImageQuality(dataUri));
-    onSelect(dataUri);
+    setProcessing(true);
+    try {
+      const raw = await fileToDataUri(file);
+      const dataUri = await compressImageForUpload(raw);
+      setWarnings(await checkImageQuality(dataUri));
+      onSelect(dataUri);
+    } finally {
+      setProcessing(false);
+    }
   }
 
   return (
@@ -42,14 +49,19 @@ export function PhotoDropzone({
           setDragOver(false);
           handleFile(e.dataTransfer.files[0]);
         }}
-        onClick={() => !disabled && inputRef.current?.click()}
+        onClick={() => !disabled && !processing && inputRef.current?.click()}
         className={cn(
           "relative flex aspect-[3/4] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border bg-surface transition-colors",
           dragOver && "border-accent bg-accent/5",
-          disabled && "cursor-not-allowed opacity-60"
+          (disabled || processing) && "cursor-not-allowed opacity-60"
         )}
       >
-        {currentUrl ? (
+        {processing ? (
+          <div className="flex flex-col items-center gap-2 text-foreground/40">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-foreground/30 border-t-foreground/70" />
+            <span className="text-xs">Preparing photo…</span>
+          </div>
+        ) : currentUrl ? (
           <Image src={currentUrl} alt={label} fill sizes="(min-width: 640px) 224px, 100vw" className="object-cover" />
         ) : (
           <div className="flex flex-col items-center gap-2 text-foreground/40">
@@ -65,7 +77,7 @@ export function PhotoDropzone({
           type="file"
           accept="image/*"
           capture="environment"
-          disabled={disabled}
+          disabled={disabled || processing}
           className="hidden"
           onChange={(e) => handleFile(e.target.files?.[0])}
         />

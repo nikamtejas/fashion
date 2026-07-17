@@ -7,6 +7,31 @@ export function fileToDataUri(file: File): Promise<string> {
   });
 }
 
+/** Downscales + re-encodes as JPEG before upload. A raw phone camera photo
+ * (routinely 8-15MB+) sent untouched as base64 — inflated another ~33% by
+ * the encoding — was the actual cause of "adding images" being slow or
+ * outright failing: a huge JSON body over this app's already-latent DB/API
+ * connection, sometimes large enough to brush the server's 20MB
+ * request-body cap. Nothing downstream needs the untouched original —
+ * Cloudinary re-transforms every image for display anyway (see
+ * cloudinaryUrl() on the backend, capped at 1200px for even the full
+ * product-gallery zoom), so 1600px here is already generous headroom. */
+export async function compressImageForUpload(dataUri: string, maxDimension = 1600, quality = 0.85): Promise<string> {
+  const img = await loadImage(dataUri);
+  const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+  const width = Math.round(img.width * scale);
+  const height = Math.round(img.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUri; // canvas unavailable — fall back to the original rather than block the upload
+
+  ctx.drawImage(img, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
 export interface QualityWarning {
   message: string;
 }

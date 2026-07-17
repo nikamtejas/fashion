@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import { fileToDataUri } from "@/lib/imageQuality";
+import { fileToDataUri, compressImageForUpload } from "@/lib/imageQuality";
 
 interface Review {
   id: string;
@@ -105,7 +105,7 @@ export function ReviewsSection({ slug }: { slug: string }) {
               onChange={async (e) => {
                 const files = Array.from(e.target.files ?? []).slice(0, 4);
                 const uris: string[] = [];
-                for (const f of files) uris.push(await fileToDataUri(f));
+                for (const f of files) uris.push(await compressImageForUpload(await fileToDataUri(f)));
                 setPhotos(uris);
               }}
             />

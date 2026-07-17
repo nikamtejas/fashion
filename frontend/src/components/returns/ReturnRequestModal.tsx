@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { SlotCalendar } from "@/components/checkout/SlotCalendar";
-import { fileToDataUri } from "@/lib/imageQuality";
+import { fileToDataUri, compressImageForUpload } from "@/lib/imageQuality";
 import { cn } from "@/lib/utils";
 import type { NearbyStore } from "@/components/checkout/types";
 
@@ -102,7 +102,7 @@ export function ReturnRequestModal({
     if (!files) return;
     const uris: string[] = [];
     for (const file of Array.from(files).slice(0, 4)) {
-      uris.push(await fileToDataUri(file));
+      uris.push(await compressImageForUpload(await fileToDataUri(file)));
     }
     setPhotos(uris);
   }
