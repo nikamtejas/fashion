@@ -11,6 +11,7 @@ import { findValidOtp, issueOtp, normalizeIndianPhone, parseDob } from "../lib/o
 import { signSession } from "../lib/jwt";
 import { buildGoogleAuthUrl, exchangeGoogleCode } from "../lib/googleOAuth";
 import { checkRateLimit } from "../lib/rateLimit";
+import { invalidateStaffRoleCache } from "../lib/staffRoleCache";
 
 const router = Router();
 
@@ -294,6 +295,9 @@ router.post("/admin/setup", async (req, res) => {
     // reject accounts whose docs predate the current address schema.
     await User.updateOne({ _id: user._id }, { $set: { role } });
     user.role = role;
+    // Otherwise the new role wouldn't take effect on any *existing* session
+    // for this account until the staffRoleCache TTL expired.
+    invalidateStaffRoleCache(String(user._id));
   }
 
   res.json({
