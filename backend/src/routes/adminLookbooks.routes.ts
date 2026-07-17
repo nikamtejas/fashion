@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAdmin } from "../middleware/auth";
+import { requireCatalog } from "../middleware/auth";
 import { Lookbook } from "../models/Lookbook";
 import { cloudinaryUrl } from "../lib/cloudinary";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireCatalog);
 
 router.get("/", async (_req, res) => {
   const lookbooks = await Lookbook.find().sort({ order: 1, createdAt: -1 }).populate("products", "name slug images").lean();

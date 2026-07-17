@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { RefundRequest } from "../models/RefundRequest";
 import { approveReturn, rejectReturn, storeQc, processRefund } from "../services/returns.service";
 import { HttpError } from "../services/order.service";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 router.get("/", async (req, res) => {
   const status = req.query.status as string | undefined;

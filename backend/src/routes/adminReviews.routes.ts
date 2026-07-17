@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { Review } from "../models/Review";
 import { Product } from "../models/Product";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 router.get("/", async (req, res) => {
   const raw = (req.query.status as string | undefined) ?? "PENDING";

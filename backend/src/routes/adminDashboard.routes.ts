@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { Order } from "../models/Order";
 import { Product } from "../models/Product";
 import { User } from "../models/User";
@@ -8,7 +8,7 @@ import { RefundRequest } from "../models/RefundRequest";
 import { PickupAppointment } from "../models/PickupAppointment";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 

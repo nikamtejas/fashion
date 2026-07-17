@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { cloudinary } from "../lib/cloudinary";
-import { requireAdmin } from "../middleware/auth";
+import { requireCatalog } from "../middleware/auth";
 import { env } from "../config/env";
 
 const router = Router();
 
 // Mints a signature for direct-from-browser signed uploads (used by the
 // admin product image dropzones from Milestone 2 onward).
-router.post("/sign", requireAdmin, (req, res) => {
+router.post("/sign", requireCatalog, (req, res) => {
   const folder = (req.body?.folder as string | undefined) ?? "luxeloom/misc";
   const timestamp = Math.round(Date.now() / 1000);
 

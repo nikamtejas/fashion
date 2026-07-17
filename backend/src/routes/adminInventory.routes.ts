@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { Product } from "../models/Product";
 import { checkAlertsForProduct } from "../services/alerts.service";
 import { notifyAdmins } from "../services/notify.service";
@@ -9,7 +9,7 @@ import { cloudinaryUrl } from "../lib/cloudinary";
 import { escapeRegex } from "../lib/escapeRegex";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 router.get("/", async (req, res) => {
   const q = (req.query.q as string | undefined)?.trim();

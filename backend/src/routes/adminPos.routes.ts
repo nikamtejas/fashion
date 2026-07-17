@@ -2,7 +2,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import crypto from "node:crypto";
 import { z } from "zod";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { Product } from "../models/Product";
 import { Order } from "../models/Order";
 import { Payment } from "../models/Payment";
@@ -11,7 +11,7 @@ import { cloudinaryUrl } from "../lib/cloudinary";
 import { escapeRegex } from "../lib/escapeRegex";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 

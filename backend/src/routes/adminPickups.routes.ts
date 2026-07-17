@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { PickupAppointment } from "../models/PickupAppointment";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { Order } from "../models/Order";
 import { User } from "../models/User";
 import { Payment } from "../models/Payment";
@@ -11,7 +11,7 @@ import { sendDeliveredEmail } from "../services/orderEmails.service";
 import { orderSubject } from "../lib/orderSubject";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 /** Daily pickup agenda, optionally per store. Includes NO_SHOW flags for
  * follow-up. */

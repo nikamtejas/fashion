@@ -4,7 +4,7 @@ import { env } from "../config/env";
 export interface SessionPayload {
   uid: string;
   email: string;
-  role: "CUSTOMER" | "ADMIN";
+  role: "CUSTOMER" | "ADMIN" | "OPS" | "CATALOG";
 }
 
 export function signSession(payload: SessionPayload): string {

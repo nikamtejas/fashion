@@ -36,3 +36,24 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   next();
 }
+
+/** ADMIN is the superuser and can reach every one of these role-gated route
+ * groups too — only the specialist role is additive, never a replacement. */
+function requireRole(...allowed: Array<"ADMIN" | "OPS" | "CATALOG">) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    if (req.user.role !== "ADMIN" && !allowed.includes(req.user.role as "OPS" | "CATALOG")) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    next();
+  };
+}
+
+/** Day-to-day operations: orders, returns, pickups, support, POS,
+ * inventory, dashboard. */
+export const requireOps = requireRole("OPS");
+
+/** Product/content management: products, photo studio, lookbooks. */
+export const requireCatalog = requireRole("CATALOG");

@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { Product } from "../models/Product";
-import { requireAdmin } from "../middleware/auth";
+import { requireCatalog } from "../middleware/auth";
 import { slugify } from "../lib/slugify";
 import { computePricing } from "../lib/pricing";
 import { uploadImage, productFolder, cloudinaryUrl } from "../lib/cloudinary";
 import { checkAlertsForProduct } from "../services/alerts.service";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireCatalog);
 
 router.get("/", async (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1);

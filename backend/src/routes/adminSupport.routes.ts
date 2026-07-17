@@ -2,10 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { isValidObjectId } from "mongoose";
 import { SupportTicket } from "../models/SupportTicket";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 router.get("/", async (req, res) => {
   const status = req.query.status === "RESOLVED" ? "RESOLVED" : req.query.status === "OPEN" ? "OPEN" : undefined;

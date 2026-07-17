@@ -1,12 +1,12 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { Payment } from "../models/Payment";
 import { CodRemittance } from "../models/CodRemittance";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const AGING_DAYS = 7;

@@ -8,7 +8,7 @@ import { ShipmentEvent } from "../models/ShipmentEvent";
 import { PickupAppointment } from "../models/PickupAppointment";
 import { RefundRequest } from "../models/RefundRequest";
 import { getSettings } from "../models/Settings";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { createShipmentForOrder } from "../services/shipment.service";
 import { HttpError, cancelOrder } from "../services/order.service";
 import { deliveredAt } from "../services/returns.service";
@@ -19,7 +19,7 @@ import { orderSubject } from "../lib/orderSubject";
 import { escapeRegex } from "../lib/escapeRegex";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 /** Pulls a Mongo ObjectId out of either a bare id or the full URL the
  * invoice QR encodes (`{frontendUrl}/account/orders/{id}`), so the same

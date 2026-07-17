@@ -2,10 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { StoreLocation } from "../models/StoreLocation";
 import { geocodeAddress, geocodePincode } from "../lib/integrations/pincode";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 router.get("/", async (_req, res) => {
   const stores = await StoreLocation.find().sort({ name: 1 }).lean();

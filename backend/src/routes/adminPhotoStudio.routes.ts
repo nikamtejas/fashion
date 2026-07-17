@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { Product } from "../models/Product";
-import { requireAdmin } from "../middleware/auth";
+import { requireCatalog } from "../middleware/auth";
 import { uploadImage, productFolder } from "../lib/cloudinary";
 import {
   generateStudioShot,
@@ -16,7 +16,7 @@ import { createJob, getJob, updateSlot, finishJob, type PhotoSlot, type PhotoJob
 import { withTimeout } from "../lib/integrations";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireCatalog);
 
 async function fetchAsImageInput(url: string): Promise<ImageInput> {
   // Every other outbound fetch in this codebase goes through withTimeout —

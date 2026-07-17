@@ -27,7 +27,13 @@ const UserSchema = new Schema(
     phone: { type: String },
     phoneVerified: { type: Date },
     dob: { type: Date },
-    role: { type: String, enum: ["CUSTOMER", "ADMIN"], default: "CUSTOMER", index: true },
+    // OPS: day-to-day operations (orders, returns, pickups, support, POS,
+    // inventory, dashboard) — everything short of settings/coupons/finance.
+    // CATALOG: product/content management (products, photo studio,
+    // lookbooks) — no order or customer data access.
+    // ADMIN is the superuser and can do everything both can, plus the
+    // sensitive routes (settings, coupons, newsletter, invoices).
+    role: { type: String, enum: ["CUSTOMER", "ADMIN", "OPS", "CATALOG"], default: "CUSTOMER", index: true },
     addresses: { type: [AddressSchema], default: [] },
     googleId: { type: String },
   },

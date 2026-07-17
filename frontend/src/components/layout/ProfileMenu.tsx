@@ -88,7 +88,7 @@ export function ProfileMenu() {
               <Heart className="h-4 w-4" /> Favorites
             </Link>
           </DropdownMenu.Item>
-          {user.role === "ADMIN" && (
+          {user.role !== "CUSTOMER" && (
             <DropdownMenu.Item asChild>
               <Link href="/admin" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-foreground/5">
                 <LayoutDashboard className="h-4 w-4" /> Admin Dashboard

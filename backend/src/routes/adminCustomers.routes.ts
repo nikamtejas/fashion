@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { requireAdmin } from "../middleware/auth";
+import { requireOps } from "../middleware/auth";
 import { User } from "../models/User";
 import { Order } from "../models/Order";
 
 const router = Router();
-router.use(requireAdmin);
+router.use(requireOps);
 
 /** Customer list with lifetime value. */
 router.get("/", async (_req, res) => {

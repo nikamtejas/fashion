@@ -114,7 +114,7 @@ router.post("/otp/verify", async (req, res) => {
     await User.updateOne({ _id: user._id }, { $set: { emailVerified: new Date() } });
   }
 
-  const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" });
+  const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" | "OPS" | "CATALOG" });
   res.cookie(env.cookieName, session, COOKIE_OPTS);
   res.json({ user: { id: user._id.toString(), email: user.email, name: user.name, role: user.role } });
 });
@@ -210,7 +210,7 @@ router.post("/register/verify", async (req, res) => {
     phoneVerified: now,
   });
 
-  const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" });
+  const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" | "OPS" | "CATALOG" });
   res.cookie(env.cookieName, session, COOKIE_OPTS);
   res.status(201).json({ user: { id: user._id.toString(), email: user.email, name: user.name, role: user.role } });
 });
@@ -246,7 +246,7 @@ router.get("/google/callback", async (req, res) => {
       });
     }
 
-    const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" });
+    const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" | "OPS" | "CATALOG" });
     res.cookie(env.cookieName, session, COOKIE_OPTS);
     res.redirect(env.frontendUrl);
   } catch {
@@ -254,12 +254,24 @@ router.get("/google/callback", async (req, res) => {
   }
 });
 
-/** Admin bootstrap: creates (or promotes) an ADMIN account for the given
- * email. Guarded by ADMIN_SETUP_KEY from the backend environment — the
- * route is disabled entirely when the key isn't set. The account still
- * logs in normally via email OTP; this only grants the role. */
+const STAFF_ROLES = ["ADMIN", "OPS", "CATALOG"] as const;
+const STAFF_ROLE_NOTE: Record<(typeof STAFF_ROLES)[number], string> = {
+  ADMIN: "Full admin access to every section.",
+  OPS: "Operations access: orders, returns, pickups, support, POS, inventory, dashboard.",
+  CATALOG: "Catalog access: products, photo studio, lookbooks.",
+};
+
+/** Staff bootstrap: creates (or re-roles) an ADMIN/OPS/CATALOG account for
+ * the given email. Guarded by ADMIN_SETUP_KEY from the backend environment
+ * — the route is disabled entirely when the key isn't set. Same key grants
+ * any of the three roles; OPS/CATALOG are both lower-privilege than ADMIN,
+ * which this route could already grant, so this doesn't widen what the key
+ * can do. The account still logs in normally via email OTP; this only
+ * grants the role. */
 router.post("/admin/setup", async (req, res) => {
-  const parsed = z.object({ email: z.string().email(), key: z.string().min(1) }).safeParse(req.body);
+  const parsed = z
+    .object({ email: z.string().email(), key: z.string().min(1), role: z.enum(STAFF_ROLES).default("ADMIN") })
+    .safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Provide an email and the admin setup key" });
   }
@@ -273,19 +285,20 @@ router.post("/admin/setup", async (req, res) => {
   }
 
   const email = parsed.data.email.toLowerCase().trim();
+  const role = parsed.data.role;
   let user = await User.findOne({ email });
   if (!user) {
-    user = await User.create({ email, role: "ADMIN", emailVerified: new Date() });
-  } else if (user.role !== "ADMIN") {
+    user = await User.create({ email, role, emailVerified: new Date() });
+  } else if (user.role !== role) {
     // updateOne, not save() — see /otp/verify: full-doc validation would
     // reject accounts whose docs predate the current address schema.
-    await User.updateOne({ _id: user._id }, { $set: { role: "ADMIN" } });
-    user.role = "ADMIN";
+    await User.updateOne({ _id: user._id }, { $set: { role } });
+    user.role = role;
   }
 
   res.json({
     user: { id: user._id.toString(), email: user.email, role: user.role },
-    note: "Account has the ADMIN role — log in with the email OTP as usual.",
+    note: `Account has the ${role} role — ${STAFF_ROLE_NOTE[role]} Log in with the email OTP as usual.`,
   });
 });
 
