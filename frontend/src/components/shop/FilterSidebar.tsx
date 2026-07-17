@@ -47,6 +47,45 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
     cachedApiFetch<{ categories: Category[] }>("/api/categories").then((data) => setCategories(data.categories));
   }, []);
 
+  // Price fields committed every keystroke onto `filters` used to fire a
+  // fetch per character typed — and ShopClient's fetch guard *drops* (not
+  // queues) a request that arrives while one's already in flight, so fast
+  // typing could leave the grid showing results for a half-typed value like
+  // "5" with nothing left to trigger a retry once typing settled on "500".
+  // Local text state + a short debounce before committing fixes both: far
+  // fewer fetches, and the one that does fire is always the final value.
+  const [minPriceInput, setMinPriceInput] = React.useState(filters.minPrice);
+  const [maxPriceInput, setMaxPriceInput] = React.useState(filters.maxPrice);
+  const filtersRef = React.useRef(filters);
+  React.useEffect(() => {
+    filtersRef.current = filters;
+  });
+
+  // Stay in sync if filters are reset from outside this component (e.g.
+  // ShopClient clears minPrice/maxPrice when the category changes).
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMinPriceInput(filters.minPrice);
+  }, [filters.minPrice]);
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMaxPriceInput(filters.maxPrice);
+  }, [filters.maxPrice]);
+
+  React.useEffect(() => {
+    if (minPriceInput === filtersRef.current.minPrice) return;
+    const handle = setTimeout(() => onChange({ ...filtersRef.current, minPrice: minPriceInput }), 500);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minPriceInput]);
+
+  React.useEffect(() => {
+    if (maxPriceInput === filtersRef.current.maxPrice) return;
+    const handle = setTimeout(() => onChange({ ...filtersRef.current, maxPrice: maxPriceInput }), 500);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxPriceInput]);
+
   function toggle(list: string[], value: string) {
     return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
   }
@@ -176,16 +215,16 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
           <input
             type="number"
             placeholder="Min"
-            value={filters.minPrice}
-            onChange={(e) => onChange({ ...filters, minPrice: e.target.value })}
+            value={minPriceInput}
+            onChange={(e) => setMinPriceInput(e.target.value)}
             className="h-9 w-full rounded-lg border border-border bg-surface px-2 text-xs"
           />
           <span className="text-foreground/40">–</span>
           <input
             type="number"
             placeholder="Max"
-            value={filters.maxPrice}
-            onChange={(e) => onChange({ ...filters, maxPrice: e.target.value })}
+            value={maxPriceInput}
+            onChange={(e) => setMaxPriceInput(e.target.value)}
             className="h-9 w-full rounded-lg border border-border bg-surface px-2 text-xs"
           />
         </div>

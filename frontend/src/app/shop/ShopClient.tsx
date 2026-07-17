@@ -75,10 +75,26 @@ export function ShopClient({
   const fetchingRef = React.useRef(false);
   const pageRef = React.useRef(1);
   const hasMoreRef = React.useRef(initialHasMore);
+  // A request that arrives while one's already in flight used to be
+  // silently dropped rather than queued — e.g. rapid filter changes (fast
+  // price-input typing, toggling two size checkboxes back to back) could
+  // leave the grid showing results for a superseded, in-between filter
+  // state with nothing left to trigger a retry for the actual final one.
+  // This remembers only the *latest* superseded call and replays it once
+  // the in-flight fetch settles.
+  const pendingFetchRef = React.useRef<{ pageNum: number; replace: boolean } | null>(null);
+  // Referencing `fetchPage` from inside its own body (to replay a queued
+  // request once the in-flight one settles) confused the compiler's
+  // memoization analysis — routing through a ref that's kept current via
+  // an effect avoids the direct self-reference.
+  const fetchPageRef = React.useRef<(pageNum: number, replace: boolean) => Promise<void>>(undefined);
 
   const fetchPage = React.useCallback(
     async (pageNum: number, replace: boolean) => {
-      if (fetchingRef.current) return;
+      if (fetchingRef.current) {
+        pendingFetchRef.current = { pageNum, replace };
+        return;
+      }
       fetchingRef.current = true;
       setLoading(true);
       const params = new URLSearchParams();
@@ -100,10 +116,17 @@ export function ShopClient({
       } finally {
         setLoading(false);
         fetchingRef.current = false;
+        const pending = pendingFetchRef.current;
+        pendingFetchRef.current = null;
+        if (pending) fetchPageRef.current?.(pending.pageNum, pending.replace);
       }
     },
     [filters, sort]
   );
+
+  React.useEffect(() => {
+    fetchPageRef.current = fetchPage;
+  }, [fetchPage]);
 
   React.useEffect(() => {
     if (skipInitialFetch.current) {
