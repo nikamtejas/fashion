@@ -66,6 +66,15 @@ router.get("/:id/invoice.pdf", async (req, res) => {
     res.setHeader("Content-Disposition", `inline; filename="invoice-${data.invoice.invoiceNumber}.pdf"`);
     const doc =
       req.query.format === "thermal" ? await renderInvoiceThermal(data) : await renderInvoiceA4(data);
+    // Headers are already sent by the time pdfkit could error mid-stream,
+    // so there's no clean JSON response left to send — but leaving this
+    // unhandled crashes the whole Node process (Node's default behavior
+    // for an unhandled EventEmitter 'error'), taking down every other
+    // in-flight request, not just this one.
+    doc.on("error", (err) => {
+      console.error("invoice PDF stream error:", err);
+      res.destroy(err);
+    });
     doc.pipe(res);
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });

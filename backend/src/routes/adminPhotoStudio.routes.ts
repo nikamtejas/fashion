@@ -13,12 +13,15 @@ import {
   type LifestylePreset,
 } from "../lib/integrations/gemini";
 import { createJob, getJob, updateSlot, finishJob, type PhotoSlot, type PhotoJobState } from "../lib/photoStudioJobs";
+import { withTimeout } from "../lib/integrations";
 
 const router = Router();
 router.use(requireAdmin);
 
 async function fetchAsImageInput(url: string): Promise<ImageInput> {
-  const res = await fetch(url);
+  // Every other outbound fetch in this codebase goes through withTimeout —
+  // this one didn't, so a hung source URL blocked the request indefinitely.
+  const res = await withTimeout(fetch(url), 15000, "photoStudio:fetchAsImageInput");
   const buf = Buffer.from(await res.arrayBuffer());
   const mimeType = res.headers.get("content-type") ?? "image/jpeg";
   return { base64: buf.toString("base64"), mimeType };

@@ -19,18 +19,28 @@ export function ProductCard({ product, priority }: { product: ShopProduct; prior
   const toggle = useFavoritesStore((s) => s.toggle);
   const [burst, setBurst] = React.useState(false);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
+  const [favBusy, setFavBusy] = React.useState(false);
 
-  function handleFavorite(e: React.MouseEvent) {
+  async function handleFavorite(e: React.MouseEvent) {
     e.preventDefault();
     if (!user) {
       router.push("/login?callbackUrl=/shop");
       return;
     }
+    if (favBusy) return; // a fast double-tap here raced the store's own optimistic update
     if (!isFavorited) {
       setBurst(true);
       setTimeout(() => setBurst(false), 600);
     }
-    toggle(product.id);
+    setFavBusy(true);
+    try {
+      await toggle(product.id);
+    } catch {
+      // toggle() already rolled back the optimistic store update — nothing
+      // else to do for this low-stakes action.
+    } finally {
+      setFavBusy(false);
+    }
   }
 
   return (

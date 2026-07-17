@@ -21,6 +21,24 @@ function repeatEvery(intervalMs: number, ...tasks: Array<() => Promise<void>>) {
   setTimeout(tick, intervalMs).unref();
 }
 
+// Nothing in this codebase listened for these before, which meant a
+// genuinely unhandled rejection or exception (a stream 'error' event with
+// no listener, e.g.) crashed the whole process with just Node's default
+// stack trace — taking down every in-flight request, not just the one that
+// triggered it, with no log line pointing at what happened. Rejections are
+// almost always recoverable (log and keep serving); Node's own guidance is
+// that an uncaught *exception* leaves the process in a potentially corrupt
+// state and the safe move is to log clearly and exit rather than keep
+// running degraded — whatever process supervisor restarts this should pick
+// it back up.
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+  process.exit(1);
+});
+
 async function main() {
   await connectDB();
   const app = createApp();

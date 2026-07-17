@@ -254,13 +254,21 @@ export async function storeQc(refundId: string, opts: { qrCode: string; pass: bo
 
 /** Executes the actual money movement per original payment rail, restores
  * stock, and closes the request as REFUNDED. */
+const REFUNDABLE_STATUSES = ["RECEIVED", "APPROVED", "ITEM_PICKED_UP"] as const;
+
 export async function processRefund(refundId: string, opts: { instant?: boolean } = {}) {
   const refund = await RefundRequest.findById(refundId);
   if (!refund) throw new HttpError(404, "Return request not found");
   if (refund.status === "REFUNDED") return refund;
-  if (!["RECEIVED", "APPROVED", "ITEM_PICKED_UP"].includes(refund.status)) {
+  if (!(REFUNDABLE_STATUSES as readonly string[]).includes(refund.status)) {
     throw new HttpError(400, `Can't refund a ${refund.status} return`);
   }
+
+  const claim = await RefundRequest.updateOne(
+    { _id: refund._id, status: { $in: REFUNDABLE_STATUSES }, refundClaimedAt: { $exists: false } },
+    { $set: { refundClaimedAt: new Date() } }
+  );
+  if (claim.modifiedCount === 0) return refund;
 
   const order = await Order.findById(refund.order);
   if (!order) throw new HttpError(404, "Order not found");

@@ -12,8 +12,17 @@ export const RAZORPAY_MOCK = serviceMock("RAZORPAY");
 
 const RAZORPAY_API = "https://api.razorpay.com/v1";
 
+// The "mock_key_secret"/"mock_webhook_secret" fallbacks only ever apply in
+// RAZORPAY_MOCK mode, where mockSignPayment() signs with the same fallback
+// so the verifier accepts it — a self-consistent pair with nothing real to
+// protect. In live mode, falling back silently would mean a deploy that
+// forgot to set the real secret accepts ANY signature computed with this
+// well-known string, letting an attacker self-verify a payment/webhook for
+// free. Refuse to start verifying instead.
 function keySecret(): string {
-  return env.razorpayKeySecret ?? "mock_key_secret";
+  if (env.razorpayKeySecret) return env.razorpayKeySecret;
+  if (RAZORPAY_MOCK) return "mock_key_secret";
+  throw new Error("RAZORPAY_KEY_SECRET is not set — refusing to verify a payment signature with no real secret");
 }
 
 export interface RazorpayOrder {
@@ -73,7 +82,13 @@ export function mockSignPayment(orderId: string, paymentId: string): string {
 
 /** Webhook signature: HMAC-SHA256 of the raw body with the webhook secret. */
 export function verifyWebhookSignature(rawBody: string, signature: string): boolean {
-  const secret = env.razorpayWebhookSecret ?? "mock_webhook_secret";
+  const secret =
+    env.razorpayWebhookSecret ??
+    (RAZORPAY_MOCK
+      ? "mock_webhook_secret"
+      : (() => {
+          throw new Error("RAZORPAY_WEBHOOK_SECRET is not set — refusing to verify a webhook with no real secret");
+        })());
   const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
   try {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));

@@ -32,8 +32,13 @@ export default function AdminReviewsPage() {
 
   const load = React.useCallback(() => {
     setReviews(null);
-    apiFetch<{ reviews: ModerationReview[] }>(`/api/admin/reviews?status=${tab}`).then((d) => setReviews(d.reviews));
-  }, [tab]);
+    apiFetch<{ reviews: ModerationReview[] }>(`/api/admin/reviews?status=${tab}`)
+      .then((d) => setReviews(d.reviews))
+      .catch((err) => {
+        setReviews([]);
+        toast({ title: "Couldn't load reviews", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+  }, [tab, toast]);
 
   React.useEffect(() => {
     // Refetch on tab change; setState in the async callback.
@@ -47,6 +52,8 @@ export default function AdminReviewsPage() {
       await apiFetch(`/api/admin/reviews/${id}/${action}`, { method: "POST" });
       toast({ title: action === "approve" ? "Review published" : "Review rejected", variant: "success" });
       load();
+    } catch (err) {
+      toast({ title: "Couldn't update review", description: err instanceof Error ? err.message : undefined, variant: "error" });
     } finally {
       setBusy(false);
     }

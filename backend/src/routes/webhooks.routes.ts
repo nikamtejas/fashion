@@ -41,11 +41,18 @@ router.post("/razorpay", raw({ type: "application/json" }), async (req, res) => 
 
   let justConfirmed = false;
   if (body.event === "payment.captured" && payment.status !== "PAID") {
-    payment.status = "PAID";
-    if (razorpayPaymentId) payment.razorpayPaymentId = razorpayPaymentId;
-    await payment.save();
-    await Order.updateOne({ _id: payment.order, status: "PENDING_PAYMENT" }, { status: "PLACED" });
-    justConfirmed = true;
+    // Same race as /razorpay/verify (payments.routes.ts) — the browser's
+    // own callback can land within milliseconds of this webhook. Claim the
+    // transition atomically so only whichever of the two actually wins
+    // triggers onOrderConfirmed().
+    const claim = await Payment.updateOne(
+      { _id: payment._id, status: { $ne: "PAID" } },
+      { $set: { status: "PAID", ...(razorpayPaymentId ? { razorpayPaymentId } : {}) } }
+    );
+    if (claim.modifiedCount > 0) {
+      await Order.updateOne({ _id: payment.order, status: "PENDING_PAYMENT" }, { status: "PLACED" });
+      justConfirmed = true;
+    }
   } else if (body.event === "payment.failed" && payment.status === "PENDING") {
     payment.status = "FAILED";
     await payment.save();

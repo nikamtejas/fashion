@@ -100,6 +100,10 @@ export async function evaluateCoupon(coupon: CouponDoc, ctx: CouponCheckContext)
   if (coupon.type === "PERCENTAGE") {
     discount = round2((base * coupon.value) / 100);
     if (coupon.maxDiscount) discount = Math.min(discount, coupon.maxDiscount);
+    // adminCoupons.routes.ts now rejects a >100% value at creation/edit time,
+    // but this guards any coupon already stored before that check existed —
+    // a discount can never exceed what it's actually discounting.
+    discount = Math.min(discount, base);
   } else {
     discount = Math.min(coupon.value, base);
   }

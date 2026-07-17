@@ -4,6 +4,7 @@ import { User } from "../models/User";
 import { requireAuth } from "../middleware/auth";
 import { findValidOtp, issueOtp, normalizeIndianPhone, parseDob } from "../lib/otp";
 import { sendOtpSms } from "../lib/integrations/twilio";
+import { checkRateLimit } from "../lib/rateLimit";
 
 const router = Router();
 router.use(requireAuth);
@@ -47,6 +48,10 @@ router.post("/phone/request", async (req, res) => {
   const taken = await User.exists({ phone, _id: { $ne: req.user!.uid } });
   if (taken) return res.status(409).json({ error: "This mobile number is already linked to another account" });
 
+  if (!checkRateLimit(`phone-otp-request:${req.user!.uid}`, 5, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many code requests — wait a few minutes and try again" });
+  }
+
   const code = await issueOtp(`sms:${phone}`);
   await sendOtpSms(phone, code);
   res.json({ ok: true, phone });
@@ -59,6 +64,10 @@ router.post("/phone/verify", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid request" });
   const phone = normalizeIndianPhone(parsed.data.phone);
   if (!phone) return res.status(400).json({ error: "Enter a valid Indian mobile number" });
+
+  if (!checkRateLimit(`phone-otp-verify:${req.user!.uid}`, 8, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many attempts — wait a few minutes and try again" });
+  }
 
   const token = await findValidOtp(`sms:${phone}`, parsed.data.code.trim());
   if (!token) return res.status(401).json({ error: "Incorrect or expired SMS code" });

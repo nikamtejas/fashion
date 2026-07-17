@@ -28,7 +28,11 @@ export const env = {
 
   mongodbUri: optional(process.env.MONGODB_URI),
 
-  jwtSecret: optional(process.env.JWT_SECRET) ?? "dev-only-insecure-secret-change-me",
+  // No insecure fallback here on purpose — a hardcoded default would mean
+  // every session everywhere signs/verifies against a secret sitting in
+  // this file, letting anyone forge an admin session if the real env var
+  // is ever left unset in a deploy. Fail loudly at startup instead.
+  jwtSecret: required("JWT_SECRET"),
   cookieName: "ll_session",
 
   // Guards the one-time POST /api/auth/admin/setup bootstrap; unset = disabled.

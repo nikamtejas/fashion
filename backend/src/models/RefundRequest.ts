@@ -44,6 +44,11 @@ const RefundRequestSchema = new Schema(
     expectedCreditDate: { type: Date },
     rejectionReason: { type: String },
     qcNotes: { type: String },
+    // Atomic claim so two concurrent processRefund() calls for the same
+    // request (a double-clicked "process refund" button, or storeQc racing
+    // a manual admin refund) can't both fire the external refund and both
+    // restock — see processRefund() in returns.service.ts.
+    refundClaimedAt: { type: Date },
   },
   { timestamps: true }
 );

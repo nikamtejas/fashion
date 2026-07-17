@@ -25,6 +25,13 @@ function getTransporter() {
       // one email per admin back to back.
       pool: true,
       maxConnections: 3,
+      // No caller of sendMail() wraps it in its own timeout — a slow or
+      // dead SMTP host would otherwise hang the request for however long
+      // nodemailer's own defaults allow, which is much longer than a
+      // request should ever block on sending mail.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     });
   }
   return transporter;

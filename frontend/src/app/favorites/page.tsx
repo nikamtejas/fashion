@@ -40,12 +40,18 @@ export default function FavoritesPage() {
 
   React.useEffect(() => {
     if (!user) return;
-    apiFetch<{ favorites: FavoriteProduct[] }>("/api/favorites").then((data) => setFavorites(data.favorites));
+    apiFetch<{ favorites: FavoriteProduct[] }>("/api/favorites")
+      .then((data) => setFavorites(data.favorites))
+      .catch(() => setFavorites([]));
   }, [user]);
 
   async function handleRemove(id: string) {
-    await toggle(id);
-    setFavorites((prev) => prev?.filter((f) => f.id !== id) ?? null);
+    try {
+      await toggle(id);
+      setFavorites((prev) => prev?.filter((f) => f.id !== id) ?? null);
+    } catch (err) {
+      toast({ title: "Couldn't remove favorite", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    }
   }
 
   async function handleMoveToCart(product: FavoriteProduct) {

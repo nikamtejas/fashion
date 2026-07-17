@@ -22,6 +22,7 @@ import { INTEGRATIONS_MOCK } from "../lib/integrations";
 import { onOrderConfirmed } from "../services/confirmation.service";
 import { notifyAdmins } from "../services/notify.service";
 import { orderSubject } from "../lib/orderSubject";
+import { checkRateLimit } from "../lib/rateLimit";
 import crypto from "node:crypto";
 
 const router = Router();
@@ -181,10 +182,25 @@ router.post("/razorpay/verify", async (req, res) => {
       return res.status(400).json({ error: "Payment signature verification failed" });
     }
 
-    payment.status = "PAID";
-    payment.razorpayPaymentId = parsed.data.razorpayPaymentId;
-    payment.razorpaySignature = parsed.data.razorpaySignature;
-    await payment.save();
+    // Razorpay's webhook (payment.captured) commonly lands within
+    // milliseconds of this same browser callback — the plain check-then-set
+    // above (`payment.status === "PAID"`) can't see the webhook's write if
+    // it hasn't landed yet, so both paths used to confirm the same order
+    // twice (double confirmation email, double admin email, double loyalty
+    // award). Claiming the transition atomically means only one of the two
+    // callers' update actually matches a still-unpaid payment.
+    const claim = await Payment.updateOne(
+      { _id: payment._id, status: { $ne: "PAID" } },
+      {
+        $set: {
+          status: "PAID",
+          razorpayPaymentId: parsed.data.razorpayPaymentId,
+          razorpaySignature: parsed.data.razorpaySignature,
+        },
+      }
+    );
+
+    if (claim.modifiedCount === 0) return res.json({ ok: true, order });
 
     order.status = "PLACED";
     await order.save();
@@ -217,6 +233,9 @@ router.post("/razorpay/fail", async (req, res) => {
 // ─── Cash on Delivery ───────────────────────────────────────────────────────
 
 router.post("/cod/request-otp", async (req, res) => {
+  if (!checkRateLimit(`cod-otp-request:${req.user!.uid}`, 5, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many code requests — wait a few minutes and try again" });
+  }
   const user = await User.findById(req.user!.uid).select("email").lean();
   if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -236,6 +255,9 @@ router.post("/cod/place", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
 
   try {
+    if (!checkRateLimit(`cod-otp-verify:${req.user!.uid}`, 8, 15 * 60 * 1000)) {
+      return res.status(429).json({ error: "Too many attempts — wait a few minutes and try again" });
+    }
     const user = await User.findById(req.user!.uid).select("email").lean();
     if (!user) return res.status(404).json({ error: "User not found" });
 

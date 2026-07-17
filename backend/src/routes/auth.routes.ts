@@ -10,6 +10,7 @@ import { sendOtpSms } from "../lib/integrations/twilio";
 import { findValidOtp, issueOtp, normalizeIndianPhone, parseDob } from "../lib/otp";
 import { signSession } from "../lib/jwt";
 import { buildGoogleAuthUrl, exchangeGoogleCode } from "../lib/googleOAuth";
+import { checkRateLimit } from "../lib/rateLimit";
 
 const router = Router();
 
@@ -30,6 +31,12 @@ router.post("/otp/request", async (req, res) => {
     return res.status(400).json({ error: "Enter a valid email address" });
   }
   const email = parsed.data.email.toLowerCase().trim();
+
+  // 5 codes per 15 minutes per email — otherwise nothing stops an
+  // unthrottled resend loop from email-bombing any registered address.
+  if (!checkRateLimit(`otp-request:${email}`, 5, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many code requests — wait a few minutes and try again" });
+  }
 
   // Login is for existing customers only — new customers must register
   // (name, date of birth, verified phone) before they can sign in.
@@ -60,6 +67,13 @@ router.post("/otp/verify", async (req, res) => {
   }
   const email = parsed.data.email.toLowerCase().trim();
   const code = parsed.data.code.trim();
+
+  // A 6-digit code has 900,000 combinations — cap attempts well below what
+  // an unthrottled brute force would need within the code's 10-minute
+  // validity window.
+  if (!checkRateLimit(`otp-verify:${email}`, 8, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many attempts — wait a few minutes and try again" });
+  }
 
   // Accept the code from ANY still-valid email, not just the newest one —
   // resend clicks and out-of-order email delivery otherwise reject codes
@@ -137,6 +151,10 @@ router.post("/register/request", async (req, res) => {
     return res.status(409).json({ error: "This mobile number is already linked to another account" });
   }
 
+  if (!checkRateLimit(`register-request:${email}`, 5, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many code requests — wait a few minutes and try again" });
+  }
+
   const emailCode = await issueOtp(email);
   const phoneCode = await issueOtp(`sms:${phone}`);
 
@@ -163,6 +181,10 @@ router.post("/register/verify", async (req, res) => {
       error: "An account with this email already exists — log in instead",
       code: "ALREADY_REGISTERED",
     });
+  }
+
+  if (!checkRateLimit(`register-verify:${email}`, 8, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many attempts — wait a few minutes and try again" });
   }
 
   const emailToken = await findValidOtp(email, parsed.data.emailCode.trim());

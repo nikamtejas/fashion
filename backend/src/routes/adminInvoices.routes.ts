@@ -61,6 +61,10 @@ router.get("/:id/pdf", async (req, res) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${invoice.invoiceNumber}.pdf"`);
     const doc = req.query.format === "thermal" ? await renderInvoiceThermal(data) : await renderInvoiceA4(data);
+    doc.on("error", (err) => {
+      console.error("invoice PDF stream error:", err);
+      res.destroy(err);
+    });
     doc.pipe(res);
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });

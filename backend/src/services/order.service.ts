@@ -133,14 +133,29 @@ export async function placeOrder(input: PlaceOrderInput) {
         throw new HttpError(409, `${short?.name ?? "An item"}${short ? ` (${short.size})` : ""} just went out of stock`);
       }
 
-      // 2. Consume the coupon.
+      // 2. Consume the coupon. evaluateCoupon() already checked usageLimit
+      // before checkout started, but that read-then-write gap is exactly
+      // what let two concurrent checkouts both pass the check and then
+      // both unconditionally `usedCount += 1`, pushing a capped coupon
+      // (e.g. "first 100 customers") past its limit. Guard the increment
+      // itself in the same query that performs it, atomically.
       let couponId: mongoose.Types.ObjectId | undefined;
       if (view.coupon) {
-        const coupon = await Coupon.findOne({ code: view.coupon.code }).session(session);
+        const coupon = await Coupon.findOneAndUpdate(
+          {
+            code: view.coupon.code,
+            $or: [{ usageLimit: { $exists: false } }, { usageLimit: null }, { $expr: { $lt: ["$usedCount", "$usageLimit"] } }],
+          },
+          { $inc: { usedCount: 1 } },
+          { new: true, session }
+        );
         if (coupon) {
-          coupon.usedCount += 1;
-          await coupon.save({ session });
           couponId = coupon._id;
+        } else if (await Coupon.exists({ code: view.coupon.code }).session(session)) {
+          // It exists but just ran out — don't silently drop the discount
+          // and don't apply it for free; make the customer retry so the
+          // cart re-evaluates without it.
+          throw new HttpError(409, "This coupon just reached its usage limit — remove it and try again");
         }
       }
 
@@ -311,8 +326,24 @@ export async function releaseStaleReservations(now = new Date()) {
 
   for (const order of stale) {
     const session = await mongoose.startSession();
+    let claimed = false;
     try {
       await session.withTransaction(async () => {
+        // Re-check status atomically inside the transaction — the sweep's
+        // initial `Order.find` above is a snapshot read taken outside any
+        // transaction, so if the customer's payment gets confirmed (via
+        // /razorpay/verify or the webhook) in the window between that read
+        // and this transaction committing, this claim will no longer match
+        // and the sweep backs off instead of cancelling a just-paid order
+        // and phantom-restoring its stock.
+        const claim = await Order.updateOne(
+          { _id: order._id, status: "PENDING_PAYMENT" },
+          { $set: { status: "CANCELLED" } },
+          { session }
+        );
+        if (claim.modifiedCount === 0) return;
+        claimed = true;
+
         if (order.items.length > 0) {
           await Product.bulkWrite(
             order.items.map((item) => ({
@@ -339,8 +370,6 @@ export async function releaseStaleReservations(now = new Date()) {
             { session }
           );
         }
-        order.status = "CANCELLED";
-        await order.save({ session });
         await Payment.updateOne({ order: order._id, status: "PENDING" }, { status: "FAILED" }, { session });
         await PickupAppointment.updateOne(
           { order: order._id, status: { $in: ["BOOKED", "READY"] } },
@@ -348,8 +377,10 @@ export async function releaseStaleReservations(now = new Date()) {
           { session }
         );
       });
-      // eslint-disable-next-line no-console
-      console.log(`[payments] released stale reservation for order ${order.orderNumber}`);
+      if (claimed) {
+        // eslint-disable-next-line no-console
+        console.log(`[payments] released stale reservation for order ${order.orderNumber}`);
+      }
     } finally {
       await session.endSession();
     }
@@ -384,9 +415,28 @@ export async function cancelOrder(orderId: string, opts: { reason: string; cance
 
   const payment = await Payment.findOne({ order: order._id });
 
+  // Two concurrent cancel attempts on the same order (a double-click that
+  // outraces the button's own disabled state, or an admin bulk-cancel
+  // racing the customer's own cancel button) used to both pass the plain
+  // status check above, then both apply the stock/coupon/loyalty reversal
+  // below and both fire a real Razorpay refund — phantom stock, a coupon
+  // usedCount that drifts negative, double-credited loyalty points, and a
+  // genuine double payout. Claiming the transition atomically means only
+  // one caller's update actually matches a still-cancellable status; the
+  // loser's `modifiedCount` comes back 0 and it skips every side effect
+  // below, including the refund call further down.
+  let claimed = false;
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
+      const claim = await Order.updateOne(
+        { _id: order._id, status: { $in: CANCELLABLE_STATUSES } },
+        { $set: { status: "CANCELLED", cancelReason: opts.reason, cancelledAt: new Date(), cancelledBy: opts.cancelledBy } },
+        { session }
+      );
+      if (claim.modifiedCount === 0) return;
+      claimed = true;
+
       if (order.items.length > 0) {
         await Product.bulkWrite(
           order.items.map((item) => ({
@@ -413,11 +463,6 @@ export async function cancelOrder(orderId: string, opts: { reason: string; cance
           { session }
         );
       }
-      order.status = "CANCELLED";
-      order.cancelReason = opts.reason;
-      order.cancelledAt = new Date();
-      order.cancelledBy = opts.cancelledBy;
-      await order.save({ session });
       await PickupAppointment.updateOne(
         { order: order._id, status: { $in: ["BOOKED", "READY"] } },
         { status: "CANCELLED" },
@@ -427,6 +472,12 @@ export async function cancelOrder(orderId: string, opts: { reason: string; cance
   } finally {
     await session.endSession();
   }
+
+  if (!claimed) return order;
+  order.status = "CANCELLED";
+  order.cancelReason = opts.reason;
+  order.cancelledAt = new Date();
+  order.cancelledBy = opts.cancelledBy;
 
   // A HOME order with an in-flight courier shipment needs that shipment
   // stopped too — otherwise the mock simulator (or a live Blue Dart

@@ -331,6 +331,10 @@ router.get("/:id/label.pdf", async (req, res) => {
     itemCount: order.items.reduce((sum, i) => sum + i.qty, 0),
     reverse: shipment.direction === "REVERSE",
   });
+  doc.on("error", (err) => {
+    console.error("shipping label PDF stream error:", err);
+    res.destroy(err);
+  });
   doc.pipe(res);
 });
 

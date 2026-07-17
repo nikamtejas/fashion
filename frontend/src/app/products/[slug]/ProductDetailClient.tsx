@@ -116,12 +116,22 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
     }
   }
 
-  function handleFavorite() {
+  const [favBusy, setFavBusy] = React.useState(false);
+
+  async function handleFavorite() {
     if (!user) {
       router.push(`/login?callbackUrl=/products/${product.slug}`);
       return;
     }
-    toggleFavorite(product.id);
+    if (favBusy) return;
+    setFavBusy(true);
+    try {
+      await toggleFavorite(product.id);
+    } catch {
+      // toggleFavorite() already rolled back the optimistic store update.
+    } finally {
+      setFavBusy(false);
+    }
   }
 
   return (
@@ -211,8 +221,9 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
             </Button>
             <button
               onClick={handleFavorite}
+              disabled={favBusy}
               aria-label="Favorite"
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-border"
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-border disabled:opacity-50"
             >
               <Heart className={cn("h-5 w-5", isFavorited && "fill-sienna text-sienna")} />
             </button>

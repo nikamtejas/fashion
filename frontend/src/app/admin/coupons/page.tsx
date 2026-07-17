@@ -54,6 +54,8 @@ export default function AdminCouponsPage() {
   const [editing, setEditing] = React.useState<Coupon | null>(null);
   const [form, setForm] = React.useState<CouponForm>(EMPTY);
   const [saving, setSaving] = React.useState(false);
+  const [deleting, setDeleting] = React.useState<Coupon | null>(null);
+  const [deleteBusy, setDeleteBusy] = React.useState(false);
 
   const load = React.useCallback(() => {
     apiFetch<{ coupons: Coupon[] }>("/api/admin/coupons").then((data) => setCoupons(data.coupons));
@@ -109,9 +111,19 @@ export default function AdminCouponsPage() {
     }
   }
 
-  async function handleDelete(c: Coupon) {
-    await apiFetch(`/api/admin/coupons/${c._id}`, { method: "DELETE" });
-    load();
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await apiFetch(`/api/admin/coupons/${deleting._id}`, { method: "DELETE" });
+      toast({ title: "Coupon deleted", variant: "success" });
+      setDeleting(null);
+      load();
+    } catch (err) {
+      toast({ title: "Couldn't delete coupon", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   return (
@@ -166,7 +178,7 @@ export default function AdminCouponsPage() {
                     <button onClick={() => openEdit(c)} className="rounded-lg p-1.5 text-foreground/50 hover:bg-foreground/5">
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button onClick={() => handleDelete(c)} className="rounded-lg p-1.5 text-foreground/50 hover:text-red-600">
+                    <button onClick={() => setDeleting(c)} className="rounded-lg p-1.5 text-foreground/50 hover:text-red-600">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -203,6 +215,7 @@ export default function AdminCouponsPage() {
               type="number"
               required
               min={1}
+              max={form.type === "PERCENTAGE" ? 100 : undefined}
               value={form.value || ""}
               onChange={(e) => setForm((f) => ({ ...f, value: Number(e.target.value) }))}
             />
@@ -265,6 +278,22 @@ export default function AdminCouponsPage() {
             {saving ? "Saving…" : editing ? "Save changes" : "Create coupon"}
           </Button>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!deleting}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="Delete this coupon?"
+        description={deleting ? `${deleting.code} will stop working immediately — this can't be undone.` : undefined}
+      >
+        <div className="flex gap-3">
+          <Button variant="outline" magnetic={false} className="flex-1" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+            Cancel
+          </Button>
+          <Button variant="accent" magnetic={false} className="flex-1" onClick={handleDelete} disabled={deleteBusy}>
+            {deleteBusy ? "Deleting…" : "Delete"}
+          </Button>
+        </div>
       </Modal>
     </div>
   );

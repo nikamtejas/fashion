@@ -25,9 +25,8 @@ export const useFavoritesStore = create<FavoritesStore>((set, get) => ({
   },
 
   toggle: async (productId: string) => {
-    const { ids } = get();
-    const isFavorited = ids.has(productId);
-    const next = new Set(ids);
+    const isFavorited = get().ids.has(productId);
+    const next = new Set(get().ids);
     if (isFavorited) {
       next.delete(productId);
     } else {
@@ -41,9 +40,19 @@ export const useFavoritesStore = create<FavoritesStore>((set, get) => ({
       } else {
         await apiFetch(`/api/favorites/${productId}`, { method: "POST" });
       }
-    } catch {
-      // Roll back on failure.
-      set({ ids, count: ids.size });
+    } catch (err) {
+      // Undo just this productId's optimistic change relative to whatever
+      // the store holds *now* — rolling back to a snapshot captured when
+      // this call started would clobber a different concurrent toggle's
+      // already-applied, already server-confirmed change (e.g. a fast
+      // double-tap where this was the slower of the two requests to fail).
+      set((state) => {
+        const rolledBack = new Set(state.ids);
+        if (isFavorited) rolledBack.add(productId);
+        else rolledBack.delete(productId);
+        return { ids: rolledBack, count: rolledBack.size };
+      });
+      throw err;
     }
   },
 

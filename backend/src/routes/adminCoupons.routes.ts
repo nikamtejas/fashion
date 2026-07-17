@@ -43,6 +43,12 @@ router.get("/analytics", async (_req, res) => {
   });
 });
 
+// value has no upper bound in the base schema (PATCH needs .partial(), which
+// isn't available once a schema is wrapped in .refine()) — nothing stopped
+// an admin from creating e.g. a 500%-off PERCENTAGE coupon, which cart.
+// service.ts's discount math doesn't clamp either, so applying it at
+// checkout can drive the order total negative. Both write routes below
+// check the 100% cap explicitly instead.
 const couponSchema = z.object({
   code: z.string().min(2).transform((s) => s.toUpperCase().trim()),
   type: z.enum(["FLAT", "PERCENTAGE"]),
@@ -58,9 +64,16 @@ const couponSchema = z.object({
   active: z.boolean().default(true),
 });
 
+function exceedsPercentageCap(type: string, value: number): boolean {
+  return type === "PERCENTAGE" && value > 100;
+}
+
 router.post("/", async (req, res) => {
   const parsed = couponSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid coupon" });
+  if (exceedsPercentageCap(parsed.data.type, parsed.data.value)) {
+    return res.status(400).json({ error: "Percentage discount can't exceed 100%" });
+  }
 
   if (await Coupon.exists({ code: parsed.data.code })) {
     return res.status(409).json({ error: "A coupon with this code already exists" });
@@ -87,6 +100,9 @@ router.patch("/:id", async (req, res) => {
   if (expiresAt !== undefined) coupon.expiresAt = expiresAt ? new Date(expiresAt) : undefined;
   if (maxDiscount !== undefined) coupon.maxDiscount = maxDiscount ?? undefined;
   if (usageLimit !== undefined) coupon.usageLimit = usageLimit ?? undefined;
+  if (exceedsPercentageCap(coupon.type, coupon.value)) {
+    return res.status(400).json({ error: "Percentage discount can't exceed 100%" });
+  }
   await coupon.save();
 
   res.json({ coupon });

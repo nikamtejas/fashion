@@ -23,8 +23,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     // Reads browser-only state (localStorage/matchMedia) unavailable during SSR,
     // so this can't be a useState initializer — must run post-mount.
-    const stored = localStorage.getItem("luxeloom-theme") as Theme | null;
-    const preferred = stored ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    // localStorage can throw (Safari private browsing, an extension/policy
+    // blocking storage) — this wraps the whole app, and there's no error
+    // boundary anywhere in it, so an unguarded throw here white-screens the
+    // entire site over what should just be "theme preference isn't saved."
+    let preferred: Theme = "light";
+    try {
+      const stored = localStorage.getItem("luxeloom-theme") as Theme | null;
+      preferred = stored ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    } catch {
+      preferred = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(preferred);
     document.documentElement.classList.toggle("dark", preferred === "dark");
@@ -34,7 +43,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme((prev) => {
       const next = prev === "dark" ? "light" : "dark";
       document.documentElement.classList.toggle("dark", next === "dark");
-      localStorage.setItem("luxeloom-theme", next);
+      try {
+        localStorage.setItem("luxeloom-theme", next);
+      } catch {
+        // Storage blocked — the toggle still works for this session, it just won't persist.
+      }
       return next;
     });
   }, []);
