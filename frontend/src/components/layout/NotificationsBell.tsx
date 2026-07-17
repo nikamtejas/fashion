@@ -6,6 +6,7 @@ import { Bell } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useClickOutside } from "@/lib/useClickOutside";
 
 interface AppNotification {
   _id: string;
@@ -55,6 +56,8 @@ export function NotificationsBell() {
     return () => clearInterval(interval);
   }, [user, load]);
 
+  const panelRef = useClickOutside<HTMLDivElement>(open, () => setOpen(false));
+
   if (!user) return null;
 
   async function openPanel() {
@@ -69,7 +72,7 @@ export function NotificationsBell() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={panelRef}>
       <button
         onClick={openPanel}
         aria-label="Notifications"

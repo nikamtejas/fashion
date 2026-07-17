@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Heart, ShoppingBag, Menu, X, ChevronDown } from "lucide-react";
-import { motion, useScroll, useMotionValueEvent } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion";
 import { MegaMenu } from "@/components/layout/MegaMenu";
 import { SearchBar } from "@/components/layout/SearchBar";
 import { ProfileMenu } from "@/components/layout/ProfileMenu";
@@ -82,48 +82,66 @@ export function Navbar() {
         </div>
       </div>
 
-      {mobileOpen && (
-        <div className="border-t border-border px-4 py-2 md:hidden">
-          <nav className="flex flex-col">
-            {Object.entries(SHOP_SUBCATEGORIES).map(([key, subs]) => (
-              <div key={key} className="border-b border-border py-1 last:border-none">
-                <div className="flex items-center justify-between">
-                  <Link
-                    href={`/shop?category=${key}`}
-                    onClick={() => setMobileOpen(false)}
-                    className="flex-1 py-2.5 text-sm font-medium uppercase tracking-wide text-foreground/80"
-                  >
-                    {SHOP_CATEGORY_LABELS[key]}
-                  </Link>
-                  <button
-                    type="button"
-                    aria-label={`Toggle ${SHOP_CATEGORY_LABELS[key]} subcategories`}
-                    aria-expanded={mobileExpanded === key}
-                    onClick={() => setMobileExpanded((v) => (v === key ? null : key))}
-                    className="p-2.5 text-foreground/50"
-                  >
-                    <ChevronDown className={cn("h-4 w-4 transition-transform", mobileExpanded === key && "rotate-180")} />
-                  </button>
-                </div>
-                {mobileExpanded === key && (
-                  <div className="flex flex-col gap-0.5 pb-2 pl-3">
-                    {subs.map((s) => (
-                      <Link
-                        key={s.value}
-                        href={`/shop?category=${key}&sub=${s.value}`}
-                        onClick={() => setMobileOpen(false)}
-                        className="py-2 text-sm text-foreground/60"
-                      >
-                        {s.label}
-                      </Link>
-                    ))}
+      <AnimatePresence initial={false}>
+        {mobileOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden border-t border-border md:hidden"
+          >
+            <nav className="flex flex-col px-4 py-2">
+              {Object.entries(SHOP_SUBCATEGORIES).map(([key, subs]) => (
+                <div key={key} className="border-b border-border py-1 last:border-none">
+                  <div className="flex items-center justify-between">
+                    <Link
+                      href={`/shop?category=${key}`}
+                      onClick={() => setMobileOpen(false)}
+                      className="flex-1 py-2.5 text-sm font-medium uppercase tracking-wide text-foreground/80"
+                    >
+                      {SHOP_CATEGORY_LABELS[key]}
+                    </Link>
+                    <button
+                      type="button"
+                      aria-label={`Toggle ${SHOP_CATEGORY_LABELS[key]} subcategories`}
+                      aria-expanded={mobileExpanded === key}
+                      onClick={() => setMobileExpanded((v) => (v === key ? null : key))}
+                      className="p-2.5 text-foreground/50"
+                    >
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", mobileExpanded === key && "rotate-180")} />
+                    </button>
                   </div>
-                )}
-              </div>
-            ))}
-          </nav>
-        </div>
-      )}
+                  <AnimatePresence initial={false}>
+                    {mobileExpanded === key && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.18, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="flex flex-col gap-0.5 pb-2 pl-3">
+                          {subs.map((s) => (
+                            <Link
+                              key={s.value}
+                              href={`/shop?category=${key}&sub=${s.value}`}
+                              onClick={() => setMobileOpen(false)}
+                              className="py-2 text-sm text-foreground/60"
+                            >
+                              {s.label}
+                            </Link>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ))}
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.header>
   );
 }

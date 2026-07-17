@@ -5,6 +5,7 @@ import { Star, BadgeCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { fileToDataUri } from "@/lib/imageQuality";
@@ -124,6 +125,17 @@ export function ReviewsSection({ slug }: { slug: string }) {
       )}
 
       <div className="mt-6 space-y-6">
+        {reviews === null &&
+          // Reserve roughly the shape of 2 review cards instead of nothing
+          // rendering below the heading until the fetch resolves — avoids
+          // the footer (and anything else below) jumping up then back down.
+          Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="border-t border-border pt-6 first:border-t-0 first:pt-0">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="mt-3 h-4 w-full" />
+              <Skeleton className="mt-2 h-4 w-2/3" />
+            </div>
+          ))}
         {reviews?.length === 0 && <p className="text-sm text-foreground/50">No reviews yet — be the first.</p>}
         {reviews?.map((r) => (
           <div key={r.id} className="border-t border-border pt-6 first:border-t-0 first:pt-0">

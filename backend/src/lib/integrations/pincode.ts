@@ -41,15 +41,20 @@ const lookupCache = new Map<string, PincodeInfo | null>();
 const geocodeCache = new Map<string, GeoPoint | null>();
 
 export async function lookupPincode(pincode: string): Promise<PincodeInfo | null> {
-  logIntegrationCall("pincode", "lookup", { pincode, mock: PINCODE_MOCK });
   if (!/^\d{6}$/.test(pincode)) return null;
 
   if (PINCODE_MOCK) {
+    logIntegrationCall("pincode", "lookup", { pincode, mock: true });
     const anchor = ANCHORS[pincode[0]];
     return anchor ? { city: anchor.city, state: anchor.state } : null;
   }
 
+  // Cache hits are near-instant and happen on every repeat lookup of the
+  // same pincode (e.g. toggling delivery tabs) — logging those as if they
+  // were live network calls made the terminal look like it was hammering
+  // an external API when it wasn't. Only log the calls that actually hit one.
   if (lookupCache.has(pincode)) return lookupCache.get(pincode)!;
+  logIntegrationCall("pincode", "lookup", { pincode, mock: false });
   try {
     const res = await withTimeout(
       fetch(`https://api.postalpincode.in/pincode/${pincode}`),
@@ -72,16 +77,18 @@ export async function lookupPincode(pincode: string): Promise<PincodeInfo | null
  * the pincode's postal circle with a deterministic jitter; live mode uses
  * OpenStreetMap Nominatim. */
 export async function geocodePincode(pincode: string): Promise<GeoPoint | null> {
-  logIntegrationCall("pincode", "geocode", { pincode, mock: PINCODE_MOCK });
   if (!/^\d{6}$/.test(pincode)) return null;
 
   if (PINCODE_MOCK) {
+    logIntegrationCall("pincode", "geocode", { pincode, mock: true });
     const anchor = ANCHORS[pincode[0]];
     if (!anchor) return null;
     return { lat: anchor.lat + hashJitter(pincode), lng: anchor.lng + hashJitter(pincode.split("").reverse().join("")) };
   }
 
+  // Same cache-hit-shouldn't-log reasoning as lookupPincode() above.
   if (geocodeCache.has(pincode)) return geocodeCache.get(pincode)!;
+  logIntegrationCall("pincode", "geocode", { pincode, mock: false });
 
   // Nominatim first (exact postal-code centroid), but it rate-limits at
   // 1 req/s and its Indian pincode coverage is patchy — never let it be
@@ -125,11 +132,14 @@ export async function geocodePincode(pincode: string): Promise<GeoPoint | null> 
  * the pincode centroid when it resolves; callers should fall back to
  * geocodePincode when it returns null. Mock mode always returns null. */
 export async function geocodeAddress(query: string): Promise<GeoPoint | null> {
-  logIntegrationCall("pincode", "geocodeAddress", { query, mock: PINCODE_MOCK });
-  if (PINCODE_MOCK) return null;
+  if (PINCODE_MOCK) {
+    logIntegrationCall("pincode", "geocodeAddress", { query, mock: true });
+    return null;
+  }
 
   const key = `addr:${query.toLowerCase()}`;
   if (geocodeCache.has(key)) return geocodeCache.get(key)!;
+  logIntegrationCall("pincode", "geocodeAddress", { query, mock: false });
   try {
     const res = await withTimeout(
       fetch(

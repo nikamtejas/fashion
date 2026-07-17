@@ -41,12 +41,19 @@ export default function CartPage() {
   }, [cart?.droppedCoupon?.code]);
 
   if (authLoading || !user || !loaded) {
+    // Shaped like the real 2-col layout (items + summary sidebar) instead of
+    // just 2 fixed blocks — a cart with a summary card (or more/fewer items)
+    // used to appear noticeably taller/shorter than this reserved space.
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
         <Skeleton className="h-8 w-40" />
-        <div className="mt-8 space-y-4">
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
+        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_360px]">
+          <div className="space-y-4">
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-28 w-full" />
+          </div>
+          <Skeleton className="h-64 w-full" />
         </div>
       </div>
     );

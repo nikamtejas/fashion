@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { Drawer } from "@/components/ui/Drawer";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -47,17 +48,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setMobileOpen(false);
   }, [pathname]);
 
-  if (loading || !user || user.role !== "ADMIN") {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-foreground/50">
-        Checking access…
-      </div>
-    );
-  }
-
   function isActive(href: string) {
     return href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
   }
+
+  // Only the content area waits on auth — the header/nav shell is static
+  // (no data dependency) and mounting it immediately means the page doesn't
+  // swap its whole structure once the auth check resolves. The redirect
+  // effect above still fires the moment a non-admin is detected.
+  const ready = !loading && !!user && user.role === "ADMIN";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
@@ -91,25 +90,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             ))}
           </nav>
         </div>
-
-        {mobileOpen && (
-          <nav className="mt-4 grid grid-cols-2 gap-x-3 gap-y-1 text-sm sm:grid-cols-3 lg:hidden">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "rounded-lg px-2.5 py-2.5 text-foreground/70 hover:bg-foreground/5 hover:text-foreground",
-                  isActive(link.href) && "bg-foreground/5 font-medium text-foreground"
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-        )}
       </div>
-      {children}
+
+      {/* A fixed-overlay drawer instead of an inline-flow panel — the old
+          version rendered the link grid directly in the page body, so
+          opening it on mobile shoved every list/table below down the page
+          (and snapped back up on close) instead of floating over it. */}
+      <Drawer open={mobileOpen} onOpenChange={setMobileOpen} title="Menu" side="left">
+        <nav className="flex flex-col gap-1 text-sm">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={cn(
+                "rounded-lg px-3 py-2.5 text-foreground/70 hover:bg-foreground/5 hover:text-foreground",
+                isActive(link.href) && "bg-foreground/5 font-medium text-foreground"
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+      </Drawer>
+
+      {ready ? (
+        children
+      ) : (
+        <div className="flex min-h-[40vh] items-center justify-center text-sm text-foreground/50">
+          Checking access…
+        </div>
+      )}
     </div>
   );
 }

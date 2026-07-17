@@ -7,6 +7,7 @@ import { Search, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { API_URL } from "@/lib/api";
+import { useClickOutside } from "@/lib/useClickOutside";
 
 interface Suggestion {
   name: string;
@@ -42,9 +43,10 @@ export function SearchBar() {
   }, [trimmedQuery]);
 
   const visibleResults = trimmedQuery.length < 2 ? [] : results;
+  const panelRef = useClickOutside<HTMLDivElement>(open, () => setOpen(false));
 
   return (
-    <div className="relative">
+    <div className="relative" ref={panelRef}>
       <button
         aria-label="Search"
         onClick={() => setOpen((v) => !v)}

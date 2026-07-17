@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { cachedApiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -70,7 +71,17 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
         <ChevronDown className={cn("h-4 w-4 text-foreground/50 transition-transform", mobileOpen && "rotate-180")} />
       </button>
 
-      <div className={cn("space-y-8", mobileOpen ? "mt-4" : "hidden", "sm:mt-0 sm:!block")}>
+      {/* Always mounted (sm+ needs it visible regardless of mobileOpen) and
+          height-animated rather than hidden/block-toggled — snapping the
+          product grid down/up instantly below made the page feel like it
+          was breaking on mobile. sm:!h-auto/opacity override the animated
+          inline style so desktop stays permanently open. */}
+      <motion.div
+        initial={false}
+        animate={{ height: mobileOpen ? "auto" : 0, opacity: mobileOpen ? 1 : 0 }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className={cn("space-y-8 overflow-hidden sm:!h-auto sm:overflow-visible sm:!opacity-100", mobileOpen ? "mt-4" : "", "sm:mt-0")}
+      >
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-foreground/50">Category</p>
         <div className="mt-3 space-y-2">
@@ -179,7 +190,7 @@ export function FilterSidebar({ filters, onChange }: { filters: ShopFilters; onC
           />
         </div>
       </div>
-      </div>
+      </motion.div>
     </aside>
   );
 }

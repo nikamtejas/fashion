@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCartStore } from "@/store/cartStore";
 import { apiFetch } from "@/lib/api";
 import { Stepper } from "@/components/ui/Stepper";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { CartSummary } from "@/components/cart/CartSummary";
 import { AddressStep } from "@/components/checkout/AddressStep";
 import { DeliveryStep } from "@/components/checkout/DeliveryStep";
@@ -41,7 +42,19 @@ export function CheckoutClient() {
   }, [user, loaded, cart, step, router]);
 
   if (authLoading || !user || !loaded || !cart) {
-    return <div className="py-20 text-center text-sm text-foreground/50">Loading checkout…</div>;
+    // Shaped like the real page (title + stepper + 2-col layout) instead of
+    // a single centered line — checkout is the one flow where a full-page
+    // swap right as the user's about to pay feels the most jarring.
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+        <h1 className="font-display text-3xl">Checkout</h1>
+        <Skeleton className="my-8 h-8 max-w-md" />
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+          <Skeleton className="h-96 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
   }
 
   return (

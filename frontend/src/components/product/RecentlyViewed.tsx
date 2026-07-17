@@ -3,6 +3,7 @@
 import * as React from "react";
 import { apiFetch } from "@/lib/api";
 import { ProductCard } from "@/components/shop/ProductCard";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { ShopProduct } from "@/components/shop/types";
 
 const KEY = "luxeloom-recently-viewed";
@@ -19,21 +20,42 @@ export function recordView(slug: string) {
 }
 
 export function RecentlyViewedRail({ excludeSlug }: { excludeSlug?: string }) {
-  const [products, setProducts] = React.useState<ShopProduct[]>([]);
+  const [products, setProducts] = React.useState<ShopProduct[] | null>(null);
 
   React.useEffect(() => {
     try {
       const slugs: string[] = JSON.parse(localStorage.getItem(KEY) ?? "[]").filter((s: string) => s !== excludeSlug);
-      if (slugs.length === 0) return;
+      if (slugs.length === 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setProducts([]);
+        return;
+      }
       apiFetch<{ products: ShopProduct[] }>(`/api/products?slugs=${slugs.join(",")}&limit=${MAX}`).then((d) => {
         // Preserve the local view order (the API returns its own sort).
         const bySlug = new Map(d.products.map((p) => [p.slug, p]));
         setProducts(slugs.map((s) => bySlug.get(s)).filter(Boolean) as ShopProduct[]);
       });
     } catch {
-      // ignore
+      setProducts([]);
     }
   }, [excludeSlug]);
+
+  // null = still resolving — reserve the rail's space with a skeleton
+  // instead of popping the whole section in once the fetch lands (this used
+  // to shove everything below it, including the footer, down the page).
+  if (products === null) {
+    return (
+      <section className="mt-20">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="mt-3 h-7 w-48" />
+        <div className="mt-6 flex gap-4 overflow-hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-[3/4] w-52 shrink-0" />
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   if (products.length === 0) return null;
 

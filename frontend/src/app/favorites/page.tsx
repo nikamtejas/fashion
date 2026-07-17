@@ -66,15 +66,13 @@ export default function FavoritesPage() {
     }
   }
 
-  if (authLoading || !user) {
-    return <div className="py-20 text-center text-sm text-foreground/50">Loading…</div>;
-  }
+  const ready = !authLoading && !!user;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
       <h1 className="font-display text-3xl">Favorites</h1>
 
-      {favorites === null && (
+      {(!ready || favorites === null) && (
         <div className="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="aspect-[3/4] w-full" />
@@ -82,7 +80,7 @@ export default function FavoritesPage() {
         </div>
       )}
 
-      {favorites?.length === 0 && (
+      {ready && favorites?.length === 0 && (
         <div className="mt-16 flex flex-col items-center text-center">
           <Heart className="h-10 w-10 text-foreground/20" />
           <p className="mt-4 text-sm text-foreground/50">Nothing saved yet — tap the heart on any product.</p>
