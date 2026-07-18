@@ -104,7 +104,7 @@ export default function AdminSetupForm() {
                     key={r.value}
                     type="button"
                     onClick={() => setRole(r.value)}
-                    className={`rounded-lg border px-2 py-2.5 text-center text-xs font-medium transition-colors ${
+                    className={`min-h-11 rounded-lg border px-2 py-2.5 text-center text-xs font-medium transition-colors ${
                       role === r.value
                         ? "border-ink bg-ink text-ivory dark:border-ivory dark:bg-ivory dark:text-ink"
                         : "border-border text-foreground/70"
@@ -114,7 +114,10 @@ export default function AdminSetupForm() {
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-foreground/50">{ROLES.find((r) => r.value === role)?.description}</p>
+              {/* min-h reserves space for the longest description (Ops) so
+                  the setup-key input and submit button below don't jump up
+                  and down as the admin taps between the 3 roles. */}
+              <p className="min-h-8 text-xs text-foreground/50">{ROLES.find((r) => r.value === role)?.description}</p>
             </div>
             <Input
               type="password"

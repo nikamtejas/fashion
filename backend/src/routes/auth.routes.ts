@@ -270,11 +270,20 @@ const STAFF_ROLE_NOTE: Record<(typeof STAFF_ROLES)[number], string> = {
  * can do. The account still logs in normally via email OTP; this only
  * grants the role. */
 router.post("/admin/setup", async (req, res) => {
+  // 20 attempts per 15 minutes, globally — this compares a single static
+  // key with no other throttle anywhere on the route (unlike every sibling
+  // auth endpoint in this file), so it was brute-forceable. Keyed globally
+  // rather than per-IP/email since an attacker varying either wouldn't be
+  // slowed by a per-key limit, and this route is rarely called in bursts.
+  if (!checkRateLimit("admin-setup", 20, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many attempts — wait a few minutes and try again" });
+  }
+
   const parsed = z
-    .object({ email: z.string().email(), key: z.string().min(1), role: z.enum(STAFF_ROLES).default("ADMIN") })
+    .object({ email: z.string().email(), key: z.string().min(1), role: z.enum(STAFF_ROLES) })
     .safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Provide an email and the admin setup key" });
+    return res.status(400).json({ error: "Provide an email, the admin setup key, and a role" });
   }
   if (!env.adminSetupKey) {
     return res.status(404).json({ error: "Admin setup is disabled — set ADMIN_SETUP_KEY in the backend .env" });

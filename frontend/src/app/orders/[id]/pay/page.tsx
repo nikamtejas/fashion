@@ -5,8 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { CreditCard, CalendarRange } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +30,7 @@ export default function RetryPaymentPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const refreshCart = useCartStore((s) => s.refresh);
 
   const [info, setInfo] = React.useState<PaymentInfo | null>(null);
   const [method, setMethod] = React.useState<"RAZORPAY" | "SNAPMINT">("RAZORPAY");
@@ -56,6 +59,11 @@ export default function RetryPaymentPage() {
   }, [user, id, router]);
 
   async function finish() {
+    // This retry-payment success path never refreshed the cart (unlike the
+    // equivalent finish() in the main checkout's PaymentStep.tsx), so the
+    // header cart badge / /cart page could show stale contents after a
+    // successful retry here.
+    await refreshCart();
     router.push(`/orders/${id}/confirmation`);
   }
 
@@ -107,12 +115,26 @@ export default function RetryPaymentPage() {
         setMockModal(false);
         toast({ title: "Payment failed again", description: "You can keep retrying while your reservation holds.", variant: "error" });
       }
+    } catch (err) {
+      toast({ title: "Something went wrong", description: err instanceof Error ? err.message : undefined, variant: "error" });
     } finally {
       setBusy(false);
     }
   }
 
-  if (!info) return <div className="py-20 text-center text-sm text-foreground/50">Loading…</div>;
+  if (!info) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="mt-2 h-4 w-full" />
+        <div className="mt-6 space-y-3">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+        <Skeleton className="mt-6 h-14 w-full" />
+      </div>
+    );
+  }
 
   if (!info.canRetry) {
     return (

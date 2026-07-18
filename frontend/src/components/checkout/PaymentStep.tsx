@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { useCartStore } from "@/store/cartStore";
 import { cn } from "@/lib/utils";
@@ -87,7 +88,26 @@ export function PaymentStep({
   }, [total]);
 
   const emiEligible = (emiPlans?.length ?? 0) > 0;
+  // codSettings === null (still loading) defaults *permissive* so the card
+  // doesn't flash disabled before settling — but nothing reset `method` if
+  // it settled to ineligible after a user selected COD during that window,
+  // so requestCodOtp/placeCod (gated only on method === "COD") could still
+  // be reached. The backend's own codMaxOrderValue check would ultimately
+  // reject it, but only after the user already went through OTP — auto-
+  // switching away is a real fix, not just a defensive backstop.
   const codEligible = codSettings === null || total <= codSettings.max;
+  React.useEffect(() => {
+    if (method === "COD" && codSettings !== null && !codEligible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMethod("RAZORPAY");
+      toast({
+        title: "Cash on Delivery isn't available for this order",
+        description: `It's only offered on orders up to ₹${codSettings.max.toLocaleString("en-IN")}.`,
+        variant: "error",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codEligible, codSettings, method]);
   const redeemedPoints = useLoyalty ? Math.min(loyaltyPoints, loyaltyBalance, Math.max(0, Math.floor(total - 1))) : 0;
   const payable = Math.round((total - redeemedPoints) * 100) / 100;
 
@@ -280,14 +300,21 @@ export function PaymentStep({
                 : "Pay when your order arrives"
           }
         />
-        {emiEligible && (
-          <MethodCard
-            selected={method === "SNAPMINT"}
-            onSelect={() => setMethod("SNAPMINT")}
-            icon={<CalendarRange className="h-4 w-4" />}
-            title="EMI with Snapmint"
-            subtitle={`From ₹${Math.min(...emiPlans!.map((p) => p.monthlyAmount)).toLocaleString("en-IN")}/month`}
-          />
+        {/* Reserving the EMI card's space with a skeleton while eligibility
+            is unknown (rather than nothing) means the two cards above don't
+            visibly shift down once the eligibility check resolves. */}
+        {emiPlans === null ? (
+          <Skeleton className="h-[68px] w-full rounded-xl" />
+        ) : (
+          emiEligible && (
+            <MethodCard
+              selected={method === "SNAPMINT"}
+              onSelect={() => setMethod("SNAPMINT")}
+              icon={<CalendarRange className="h-4 w-4" />}
+              title="EMI with Snapmint"
+              subtitle={`From ₹${Math.min(...emiPlans!.map((p) => p.monthlyAmount)).toLocaleString("en-IN")}/month`}
+            />
+          )
         )}
       </div>
 
@@ -357,7 +384,7 @@ export function PaymentStep({
         <ShieldCheck className="h-3.5 w-3.5" /> Payments are verified server-side; your items stay reserved while you pay.
       </p>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Button variant="outline" magnetic={false} onClick={onBack} disabled={busy}>
           Back
         </Button>

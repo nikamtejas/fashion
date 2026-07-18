@@ -9,6 +9,7 @@ import confetti from "canvas-confetti";
 import { apiFetch, API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface OrderDetail {
   _id: string;
@@ -58,7 +59,24 @@ export default function ConfirmationPage() {
       .catch(() => {});
   }, [user, id, router]);
 
-  if (!order) return <div className="py-20 text-center text-sm text-foreground/50">Loading…</div>;
+  if (!order) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-16">
+        <Skeleton className="h-20 w-20 rounded-full" />
+        <Skeleton className="mt-6 h-8 w-48" />
+        <Skeleton className="mt-3 h-4 w-56" />
+        <div className="mt-10 flex w-full justify-between">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-3 w-3 rounded-full" />
+          ))}
+        </div>
+        <div className="mt-10 flex gap-3">
+          <Skeleton className="h-11 w-32" />
+          <Skeleton className="h-11 w-40" />
+        </div>
+      </div>
+    );
+  }
 
   const timeline = order.deliveryMethod === "PICKUP" ? TIMELINE_PICKUP : TIMELINE_HOME;
 

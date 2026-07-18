@@ -39,10 +39,13 @@ export function ReviewsSection({ slug }: { slug: string }) {
   const [rating, setRating] = React.useState(5);
   const [body, setBody] = React.useState("");
   const [photos, setPhotos] = React.useState<string[]>([]);
+  const [photosProcessing, setPhotosProcessing] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
 
   const load = React.useCallback(() => {
-    apiFetch<{ reviews: Review[] }>(`/api/products/${slug}/reviews`).then((data) => setReviews(data.reviews));
+    apiFetch<{ reviews: Review[] }>(`/api/products/${slug}/reviews`)
+      .then((data) => setReviews(data.reviews))
+      .catch(() => setReviews([]));
   }, [slug]);
 
   React.useEffect(() => {
@@ -101,14 +104,21 @@ export function ReviewsSection({ slug }: { slug: string }) {
               type="file"
               accept="image/*"
               multiple
-              className="mt-1 block text-xs"
+              disabled={photosProcessing}
+              className="mt-1 block text-xs disabled:opacity-50"
               onChange={async (e) => {
                 const files = Array.from(e.target.files ?? []).slice(0, 4);
-                const uris: string[] = [];
-                for (const f of files) uris.push(await compressImageForUpload(await fileToDataUri(f)));
-                setPhotos(uris);
+                setPhotosProcessing(true);
+                try {
+                  const uris: string[] = [];
+                  for (const f of files) uris.push(await compressImageForUpload(await fileToDataUri(f)));
+                  setPhotos(uris);
+                } finally {
+                  setPhotosProcessing(false);
+                }
               }}
             />
+            {photosProcessing && <p className="mt-1 text-xs text-foreground/50">Preparing photos…</p>}
             {photos.length > 0 && (
               <div className="mt-2 flex gap-2">
                 {photos.map((p, i) => (
@@ -118,7 +128,7 @@ export function ReviewsSection({ slug }: { slug: string }) {
               </div>
             )}
           </div>
-          <Button type="submit" size="sm" disabled={submitting} magnetic={false}>
+          <Button type="submit" size="sm" disabled={submitting || photosProcessing} magnetic={false}>
             {submitting ? "Posting…" : "Post review"}
           </Button>
         </form>

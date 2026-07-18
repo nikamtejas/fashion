@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { Product } from "../models/Product";
+import { Category } from "../models/Category";
 import { requireCatalog } from "../middleware/auth";
 import { uploadImage, productFolder } from "../lib/cloudinary";
 import {
@@ -210,9 +211,13 @@ async function runPhotoStudioJob(opts: {
   try {
     const product = await Product.findById(productId);
     if (product && !product.description) {
-      const seo = await generateSeoContent(product.name, String(product.category), 4);
+      const category = await Category.findById(product.category).select("name").lean();
+      const seo = await generateSeoContent(product.name, category?.name ?? "fashion", 4);
       product.description = seo.description;
-      product.tags = seo.tags;
+      // Merge rather than replace — the admin's own tags (including the
+      // Shirts/T-Shirts/etc. type tag the storefront filter matches on)
+      // must survive this AI draft, not be wiped by it.
+      product.tags = [...new Set([...(product.tags ?? []), ...seo.tags])];
       await product.save();
     }
   } catch {

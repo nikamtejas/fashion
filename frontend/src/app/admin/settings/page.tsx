@@ -18,7 +18,12 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
-    apiFetch<{ settings: StoreSettings }>("/api/admin/settings").then((data) => setSettings(data.settings));
+    apiFetch<{ settings: StoreSettings }>("/api/admin/settings")
+      .then((data) => setSettings(data.settings))
+      .catch((err) => {
+        toast({ title: "Couldn't load settings", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSave(e: React.FormEvent) {

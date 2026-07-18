@@ -56,11 +56,17 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const [selectedSize, setSelectedSize] = React.useState<string | null>(sizes[0] ?? null);
   const [selectedColor, setSelectedColor] = React.useState<string | null>(colors[0]?.[0] ?? null);
 
+  // If the selected color has its own tagged photos, the gallery shows only
+  // those (admin uploads up to 4 per color); otherwise fall back to the
+  // full default set shared across colors.
+  const colorPhotos = selectedColor ? product.images.filter((img) => img.color === selectedColor) : [];
+  const baseImages = colorPhotos.length > 0 ? colorPhotos : product.images;
+
   // Prefer AI-enhanced shots, but fall back to the original photos —
   // seeded products only have ORIGINAL images. An admin-chosen cover is
   // always included (even if it's an ORIGINAL) and leads the gallery.
-  const enhanced = product.images.filter((img) => img.type !== "ORIGINAL" || img.isCover);
-  const galleryImages = [...(enhanced.length > 0 ? enhanced : product.images)]
+  const enhanced = baseImages.filter((img) => img.type !== "ORIGINAL" || img.isCover);
+  const galleryImages = [...(enhanced.length > 0 ? enhanced : baseImages)]
     .sort((a, b) => Number(b.isCover ?? false) - Number(a.isCover ?? false) || a.order - b.order)
     .map((img) => ({ url: img.url, altText: img.altText, type: img.type }));
 
@@ -137,7 +143,10 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-        <ProductGallery images={galleryImages.length > 0 ? galleryImages : [{ url: "", type: "ORIGINAL" }]} />
+        <ProductGallery
+          key={selectedColor ?? "all"}
+          images={galleryImages.length > 0 ? galleryImages : [{ url: "", type: "ORIGINAL" }]}
+        />
 
         <div>
           <p className="text-xs uppercase tracking-widest text-foreground/50">{product.brand}</p>

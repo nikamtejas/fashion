@@ -98,13 +98,20 @@ export function ReturnRequestModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [method]);
 
+  const [photosProcessing, setPhotosProcessing] = React.useState(false);
+
   async function handlePhotos(files: FileList | null) {
     if (!files) return;
-    const uris: string[] = [];
-    for (const file of Array.from(files).slice(0, 4)) {
-      uris.push(await compressImageForUpload(await fileToDataUri(file)));
+    setPhotosProcessing(true);
+    try {
+      const uris: string[] = [];
+      for (const file of Array.from(files).slice(0, 4)) {
+        uris.push(await compressImageForUpload(await fileToDataUri(file)));
+      }
+      setPhotos(uris);
+    } finally {
+      setPhotosProcessing(false);
     }
-    setPhotos(uris);
   }
 
   async function submit() {
@@ -188,7 +195,15 @@ export function ReturnRequestModal({
           <label className="text-xs font-medium uppercase tracking-wider text-foreground/50">
             Photos (optional, up to 4)
           </label>
-          <input type="file" accept="image/*" multiple onChange={(e) => handlePhotos(e.target.files)} className="mt-1 block text-xs" />
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            disabled={photosProcessing}
+            onChange={(e) => handlePhotos(e.target.files)}
+            className="mt-1 block text-xs disabled:opacity-50"
+          />
+          {photosProcessing && <p className="mt-1 text-xs text-foreground/50">Preparing photos…</p>}
           {photos.length > 0 && (
             <div className="mt-2 flex gap-2">
               {photos.map((p, i) => (
@@ -284,7 +299,7 @@ export function ReturnRequestModal({
           </div>
         )}
 
-        <Button className="w-full" size="lg" disabled={!canSubmit || busy} onClick={submit}>
+        <Button className="w-full" size="lg" disabled={!canSubmit || busy || photosProcessing} onClick={submit}>
           {busy ? "Submitting…" : "Request return"}
         </Button>
       </div>

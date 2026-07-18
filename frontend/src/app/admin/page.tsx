@@ -50,7 +50,9 @@ interface DashboardData {
     revenueMonth: number;
     orderCount: number;
     avgOrderValue: number;
-    trueProfit: number;
+    /** Omitted entirely for non-ADMIN callers (OPS) — margin/cost-basis data
+     * stays ADMIN-only even though OPS can reach this dashboard. */
+    trueProfit?: number;
     refundRate: number;
     refundedValue: number;
     ordersPerCustomer: number;
@@ -142,7 +144,9 @@ export default function AdminDashboardPage() {
         <KpiTile label="Revenue this month" value={inr(kpis.revenueMonth)} spark={spark} />
         <KpiTile label={`Orders (${data.range.from} → ${data.range.to})`} value={String(kpis.orderCount)} spark={spark} sparkKey="orders" />
         <KpiTile label="Avg order value" value={inr(kpis.avgOrderValue)} />
-        <KpiTile label="True profit (range)" value={inr(kpis.trueProfit)} hint="from per-product pricing breakdowns, minus discounts" />
+        {kpis.trueProfit !== undefined && (
+          <KpiTile label="True profit (range)" value={inr(kpis.trueProfit)} hint="from per-product pricing breakdowns, minus discounts" />
+        )}
         <KpiTile label="Refund rate" value={`${kpis.refundRate}%`} hint={`${inr(kpis.refundedValue)} refunded`} />
         <KpiTile label="Orders / customer" value={String(kpis.ordersPerCustomer)} hint={`${kpis.customerCount} customers — visitor analytics lands later`} />
       </div>

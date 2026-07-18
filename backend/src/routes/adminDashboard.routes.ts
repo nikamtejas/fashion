@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireOps } from "../middleware/auth";
+import { getCurrentRole } from "../lib/staffRoleCache";
 import { Order } from "../models/Order";
 import { Product } from "../models/Product";
 import { User } from "../models/User";
@@ -176,6 +177,13 @@ router.get("/", async (req, res) => {
     .flatMap((p) => p.variants.filter((v) => v.stock < 5).map((v) => ({ name: p.name, slug: p.slug, sku: v.sku, size: v.size, color: v.color, stock: v.stock })))
     .slice(0, 12);
 
+  // requireOps admits both ADMIN and OPS, but true profit (derived from
+  // Product.pricing.profitPerUnit — cost-basis/margin, not the customer-
+  // facing price) is meant to stay ADMIN-only per the role split this
+  // dashboard's own requireOps grants an exception to. Everything else
+  // here (revenue, order counts, refund rate, category/top-product
+  // breakdowns) is fulfillment-relevant and fine for OPS to see.
+  const callerRole = await getCurrentRole(req.user!.uid);
   res.json({
     range: { from: dayKey(from), to: dayKey(to) },
     kpis: {
@@ -184,7 +192,7 @@ router.get("/", async (req, res) => {
       revenueMonth,
       orderCount,
       avgOrderValue,
-      trueProfit,
+      ...(callerRole === "ADMIN" ? { trueProfit } : {}),
       refundRate,
       refundedValue,
       ordersPerCustomer,

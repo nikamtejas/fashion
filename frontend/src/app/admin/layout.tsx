@@ -92,6 +92,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // effect above still fires the moment a non-staff user is detected.
   const ready = !loading && isStaff;
 
+  // The hamburger/drawer collapse exists because ADMIN's full 18-link nav
+  // can't fit in one row below 1024px — but CATALOG only ever has 2 links
+  // and OPS has 12, both of which fit comfortably at a narrower viewport.
+  // Picking the breakpoint by link count instead of a fixed "lg" avoids
+  // forcing the same hamburger-only mobile pattern on a nav short enough to
+  // just show inline. (Tailwind's JIT needs literal class names, not
+  // interpolated ones, hence the explicit branches.)
+  const navBreakpoint = links.length <= 4 ? "sm" : links.length <= 8 ? "md" : "lg";
+  const navVisibleClass = navBreakpoint === "sm" ? "sm:flex" : navBreakpoint === "md" ? "md:flex" : "lg:flex";
+  const hamburgerHiddenClass = navBreakpoint === "sm" ? "sm:hidden" : navBreakpoint === "md" ? "md:hidden" : "lg:hidden";
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
       <div className="mb-6 border-b border-border pb-4 sm:mb-8">
@@ -100,11 +111,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             LuxeLoom Admin
           </Link>
 
-          {/* 17 links can't sit in one readable row below lg (1024px) — a
-              tablet in portrait would wrap them into 3-4 cramped rows above
-              the fold on every admin page. Collapse into a drawer instead. */}
+          {/* ADMIN's full 18-link nav can't sit in one readable row below lg
+              (1024px) — a tablet in portrait would wrap them into 3-4
+              cramped rows above the fold on every admin page. Collapse into
+              a drawer instead; OPS/CATALOG's shorter navs get an earlier
+              breakpoint (see navBreakpoint above) since they fit sooner. */}
           <button
-            className="rounded-full p-2 text-foreground/70 hover:bg-foreground/5 hover:text-foreground lg:hidden"
+            className={cn("rounded-full p-2 text-foreground/70 hover:bg-foreground/5 hover:text-foreground", hamburgerHiddenClass)}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
@@ -112,7 +125,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
-          <nav className="hidden flex-wrap gap-x-5 gap-y-2 text-sm text-foreground/60 lg:flex">
+          <nav className={cn("hidden flex-wrap gap-x-5 gap-y-2 text-sm text-foreground/60", navVisibleClass)}>
             {links.map((link) => (
               <Link
                 key={link.href}

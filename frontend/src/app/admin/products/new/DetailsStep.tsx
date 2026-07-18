@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { SHOP_SUBCATEGORIES } from "@/lib/shopCategories";
 import type { WizardProduct } from "./types";
 
 interface Category {
@@ -31,13 +32,36 @@ export function DetailsStep({
   const [gender, setGender] = React.useState(product?.gender ?? "UNISEX");
   const [brand, setBrand] = React.useState(product?.brand ?? "LuxeLoom");
   const [tags, setTags] = React.useState(product?.tags?.join(", ") ?? "");
+  // The exact slug the storefront's Shirts/T-Shirts type filter matches
+  // against (see SHOP_SUBCATEGORIES) — kept separate from free-text tags so
+  // it's never mistyped or wrong-cased.
+  const [type, setType] = React.useState("");
   const [description, setDescription] = React.useState(product?.description ?? "");
   const [saving, setSaving] = React.useState(false);
+
+  const categorySlug = categories.find((c) => c._id === category)?.slug;
+  const typeOptions = categorySlug ? SHOP_SUBCATEGORIES[categorySlug] : undefined;
 
   React.useEffect(() => {
     apiFetch<{ categories: Category[] }>("/api/categories").then((data) => {
       setCategories(data.categories);
+      const currentCategoryId = category || data.categories[0]?._id;
       if (!category && data.categories[0]) setCategory(data.categories[0]._id);
+
+      const slug = data.categories.find((c) => c._id === currentCategoryId)?.slug;
+      const options = slug ? SHOP_SUBCATEGORIES[slug] : undefined;
+      const existing = options?.find((o) => product?.tags?.some((t) => t.toLowerCase() === o.value))?.value;
+      if (existing) {
+        setType(existing);
+        // Drop it from the free-text field so it isn't shown twice.
+        setTags((prev) =>
+          prev
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t.toLowerCase() !== existing)
+            .join(", ")
+        );
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -46,15 +70,17 @@ export function DetailsStep({
     e.preventDefault();
     setSaving(true);
     try {
+      const freeTags = tags
+        .split(",")
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean);
+      const allTags = [...(type ? [type] : []), ...freeTags].filter((t, i, arr) => arr.indexOf(t) === i);
       const payload = {
         name,
         category,
         gender,
         brand,
-        tags: tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
+        tags: allTags,
         description,
       };
       const data = product
@@ -78,7 +104,13 @@ export function DetailsStep({
         <label className="text-xs font-medium uppercase tracking-wider text-foreground/70">Category</label>
         <select
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          onChange={(e) => {
+            const newId = e.target.value;
+            setCategory(newId);
+            const slug = categories.find((c) => c._id === newId)?.slug;
+            const options = slug ? SHOP_SUBCATEGORIES[slug] : undefined;
+            if (!options?.some((o) => o.value === type)) setType("");
+          }}
           required
           className="h-12 rounded-lg border border-border bg-surface px-4 text-sm"
         >
@@ -103,8 +135,32 @@ export function DetailsStep({
         </select>
       </div>
 
+      {typeOptions && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium uppercase tracking-wider text-foreground/70">
+            Type <span className="normal-case text-foreground/40">(powers the shop&rsquo;s Shirts/T-Shirts filter)</span>
+          </label>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="h-12 rounded-lg border border-border bg-surface px-4 text-sm"
+          >
+            <option value="">— None —</option>
+            {typeOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <Input label="Brand" value={brand} onChange={(e) => setBrand(e.target.value)} />
-      <Input label="Tags (comma-separated)" value={tags} onChange={(e) => setTags(e.target.value)} />
+      <Input
+        label="Other tags (comma-separated)"
+        value={tags}
+        onChange={(e) => setTags(e.target.value)}
+      />
 
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium uppercase tracking-wider text-foreground/70">

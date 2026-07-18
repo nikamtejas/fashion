@@ -60,9 +60,19 @@ export default function AdminCodRemittancePage() {
     setOutstanding(null);
     setHistory(null);
     setSelected(new Set());
-    apiFetch<OutstandingResponse>("/api/admin/cod-remittance/outstanding").then(setOutstanding);
-    apiFetch<{ remittances: RemittanceRow[] }>("/api/admin/cod-remittance").then((d) => setHistory(d.remittances));
-  }, []);
+    apiFetch<OutstandingResponse>("/api/admin/cod-remittance/outstanding")
+      .then(setOutstanding)
+      .catch((err) => {
+        setOutstanding({ rows: [], totalOutstanding: 0, overdueCount: 0, overdueAmount: 0 });
+        toast({ title: "Couldn't load outstanding COD", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+    apiFetch<{ remittances: RemittanceRow[] }>("/api/admin/cod-remittance")
+      .then((d) => setHistory(d.remittances))
+      .catch((err) => {
+        setHistory([]);
+        toast({ title: "Couldn't load remittance history", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+  }, [toast]);
 
   React.useEffect(() => {
     // Initial load; setState happens in the async callbacks.

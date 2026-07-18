@@ -118,8 +118,29 @@ export function ImagesStep({
         }
       };
       es.onerror = () => {
+        // Closing here also defeats the browser's native EventSource
+        // auto-reconnect — there's no retry logic to replace it with (the
+        // job runs to completion server-side regardless of whether anyone's
+        // listening), so on a genuine drop the best we can do is tell the
+        // admin plainly and stop any slot from looking like it's still
+        // working when nothing is actually updating it anymore.
         es.close();
         setGenerating(false);
+        setJobState((prev) => {
+          if (!prev) return prev;
+          const photos = { ...prev.photos };
+          for (const key of Object.keys(photos) as Slot[]) {
+            if (["generating", "checking", "regenerating"].includes(photos[key].status)) {
+              photos[key] = { ...photos[key], status: "failed", error: "Connection to the server was lost" };
+            }
+          }
+          return { ...prev, photos };
+        });
+        toast({
+          title: "Lost connection to the photo studio",
+          description: "Whatever finished generating was saved — check below, and regenerate any photo still missing.",
+          variant: "error",
+        });
         refetchProduct();
       };
     } catch (err) {
@@ -148,8 +169,12 @@ export function ImagesStep({
   }
 
   async function handleDiscard(image: WizardImage) {
-    await apiFetch(`/api/admin/products/${product._id}/images/${image._id}`, { method: "DELETE" });
-    await refetchProduct();
+    try {
+      await apiFetch(`/api/admin/products/${product._id}/images/${image._id}`, { method: "DELETE" });
+      await refetchProduct();
+    } catch (err) {
+      toast({ title: "Couldn't discard photo", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    }
   }
 
   async function handleSetCover(image: WizardImage) {
@@ -359,16 +384,38 @@ function PhotoResultCard({
   image?: WizardImage;
   referenceUrl?: string;
   onRegenerate: (instruction?: string) => void;
-  onDiscard?: () => void;
-  onReplace?: (file: File) => void;
+  onDiscard?: () => Promise<void>;
+  onReplace?: (file: File) => Promise<void>;
   coverNode?: React.ReactNode;
   aiModelLabel?: boolean;
 }) {
   const [instruction, setInstruction] = React.useState("");
   const [showInstruction, setShowInstruction] = React.useState(false);
+  const [replacing, setReplacing] = React.useState(false);
+  const [discarding, setDiscarding] = React.useState(false);
   const replaceInputRef = React.useRef<HTMLInputElement>(null);
   const status = slotState?.status;
-  const isBusy = status === "generating" || status === "checking" || status === "regenerating";
+  const isBusy = status === "generating" || status === "checking" || status === "regenerating" || replacing || discarding;
+
+  async function handleReplaceInputChange(file: File | undefined) {
+    if (!file || !onReplace) return;
+    setReplacing(true);
+    try {
+      await onReplace(file);
+    } finally {
+      setReplacing(false);
+    }
+  }
+
+  async function handleDiscardClick() {
+    if (!onDiscard) return;
+    setDiscarding(true);
+    try {
+      await onDiscard();
+    } finally {
+      setDiscarding(false);
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-border p-4">
@@ -420,21 +467,21 @@ function PhotoResultCard({
           <RotateCcw className="h-3.5 w-3.5" /> Regenerate
         </Button>
         {onDiscard && (
-          <Button size="sm" variant="ghost" magnetic={false} disabled={isBusy} onClick={onDiscard}>
-            <Trash2 className="h-3.5 w-3.5" /> Discard
+          <Button size="sm" variant="ghost" magnetic={false} disabled={isBusy} onClick={handleDiscardClick}>
+            <Trash2 className="h-3.5 w-3.5" /> {discarding ? "Discarding…" : "Discard"}
           </Button>
         )}
         {onReplace && (
           <>
             <Button size="sm" variant="ghost" magnetic={false} disabled={isBusy} onClick={() => replaceInputRef.current?.click()}>
-              <Upload className="h-3.5 w-3.5" /> Replace with own photo
+              <Upload className="h-3.5 w-3.5" /> {replacing ? "Preparing photo…" : "Replace with own photo"}
             </Button>
             <input
               ref={replaceInputRef}
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => e.target.files?.[0] && onReplace(e.target.files[0])}
+              onChange={(e) => handleReplaceInputChange(e.target.files?.[0])}
             />
           </>
         )}

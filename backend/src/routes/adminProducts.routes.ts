@@ -154,12 +154,21 @@ const imageUploadSchema = z.object({
   replaceImageId: z.string().optional(),
 });
 
+const MAX_IMAGES_PER_COLOR = 4;
+
 router.post("/:id/images", async (req, res) => {
   const parsed = imageUploadSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid image payload" });
 
   const product = await Product.findById(req.params.id);
   if (!product) return res.status(404).json({ error: "Product not found" });
+
+  if (parsed.data.color && !parsed.data.replaceImageId) {
+    const existingForColor = product.images.filter((img) => img.color === parsed.data.color).length;
+    if (existingForColor >= MAX_IMAGES_PER_COLOR) {
+      return res.status(400).json({ error: `${parsed.data.color} already has the maximum of ${MAX_IMAGES_PER_COLOR} photos` });
+    }
+  }
 
   const uploaded = await uploadImage(parsed.data.dataUri, { folder: productFolder(product.slug) });
 

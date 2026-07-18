@@ -53,13 +53,21 @@ export default function AdminPickupsPage() {
   const [lookup, setLookup] = React.useState<LookupResult | null>(null);
   const [otpSentTo, setOtpSentTo] = React.useState<string | null>(null);
   const [otp, setOtp] = React.useState("");
+  // The QR-scan handover path was a single click with no confirmation step
+  // (unlike the OTP path, where typing a code is itself a deliberate act) —
+  // a misclick at a busy counter permanently marks the wrong order
+  // delivered with no undo.
+  const [confirmHandoverOpen, setConfirmHandoverOpen] = React.useState(false);
 
   const load = React.useCallback(() => {
     setAppointments(null);
-    apiFetch<{ appointments: AgendaAppointment[] }>(`/api/admin/pickups?date=${date}`).then((data) =>
-      setAppointments(data.appointments)
-    );
-  }, [date]);
+    apiFetch<{ appointments: AgendaAppointment[] }>(`/api/admin/pickups?date=${date}`)
+      .then((data) => setAppointments(data.appointments))
+      .catch((err) => {
+        setAppointments([]);
+        toast({ title: "Couldn't load agenda", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
+  }, [date, toast]);
 
   React.useEffect(() => {
     // Refetch the agenda whenever the selected date changes (load is a
@@ -284,12 +292,7 @@ export default function AdminPickupsPage() {
 
             {actionable ? (
               <div className="space-y-2">
-                <Button
-                  className="w-full"
-                  magnetic={false}
-                  disabled={busy}
-                  onClick={() => completeHandover({ qrCode: lookup.appointment.qrCode })}
-                >
+                <Button className="w-full" magnetic={false} disabled={busy} onClick={() => setConfirmHandoverOpen(true)}>
                   <PackageCheck className="h-4 w-4" />
                   {busy ? "Working…" : lookup.payment.dueAmount > 0 ? "Cash collected — mark as done" : "Handed over — mark as done"}
                 </Button>
@@ -330,6 +333,34 @@ export default function AdminPickupsPage() {
             )}
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={confirmHandoverOpen}
+        onOpenChange={setConfirmHandoverOpen}
+        title="Confirm handover?"
+        description={
+          lookup
+            ? `Marks order ${lookup.order.orderNumber} as delivered${lookup.payment.dueAmount > 0 ? ` and ₹${lookup.payment.dueAmount.toLocaleString("en-IN")} as collected` : ""} — this can't be undone from here.`
+            : undefined
+        }
+      >
+        <div className="flex gap-3">
+          <Button variant="outline" magnetic={false} className="flex-1" onClick={() => setConfirmHandoverOpen(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1"
+            magnetic={false}
+            disabled={busy}
+            onClick={() => {
+              setConfirmHandoverOpen(false);
+              if (lookup) completeHandover({ qrCode: lookup.appointment.qrCode });
+            }}
+          >
+            {busy ? "Working…" : "Confirm"}
+          </Button>
+        </div>
       </Modal>
     </div>
   );

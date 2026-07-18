@@ -30,11 +30,17 @@ export function RecentlyViewedRail({ excludeSlug }: { excludeSlug?: string }) {
         setProducts([]);
         return;
       }
-      apiFetch<{ products: ShopProduct[] }>(`/api/products?slugs=${slugs.join(",")}&limit=${MAX}`).then((d) => {
-        // Preserve the local view order (the API returns its own sort).
-        const bySlug = new Map(d.products.map((p) => [p.slug, p]));
-        setProducts(slugs.map((s) => bySlug.get(s)).filter(Boolean) as ShopProduct[]);
-      });
+      apiFetch<{ products: ShopProduct[] }>(`/api/products?slugs=${slugs.join(",")}&limit=${MAX}`)
+        .then((d) => {
+          // Preserve the local view order (the API returns its own sort).
+          const bySlug = new Map(d.products.map((p) => [p.slug, p]));
+          setProducts(slugs.map((s) => bySlug.get(s)).filter(Boolean) as ShopProduct[]);
+        })
+        // This is a separate promise chain from the surrounding try/catch
+        // (which only covers the synchronous JSON.parse above), so a
+        // rejection here previously left `products` stuck at null forever
+        // — the rail's skeleton placeholder never resolved into anything.
+        .catch(() => setProducts([]));
     } catch {
       setProducts([]);
     }

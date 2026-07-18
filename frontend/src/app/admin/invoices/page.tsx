@@ -4,6 +4,7 @@ import * as React from "react";
 import { FileText, FolderArchive, Printer } from "lucide-react";
 import { apiFetch, API_URL } from "@/lib/api";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 interface RegisterInvoice {
   _id: string;
@@ -24,6 +25,7 @@ interface GstSummary {
 }
 
 export default function AdminInvoicesPage() {
+  const { toast } = useToast();
   const [month, setMonth] = React.useState(new Date().toISOString().slice(0, 7));
   const [invoices, setInvoices] = React.useState<RegisterInvoice[] | null>(null);
   const [summary, setSummary] = React.useState<GstSummary | null>(null);
@@ -32,8 +34,14 @@ export default function AdminInvoicesPage() {
     // Refetch on month change; setState in the async callbacks.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setInvoices(null);
-    apiFetch<{ invoices: RegisterInvoice[] }>(`/api/admin/invoices?month=${month}`).then((d) => setInvoices(d.invoices));
+    apiFetch<{ invoices: RegisterInvoice[] }>(`/api/admin/invoices?month=${month}`)
+      .then((d) => setInvoices(d.invoices))
+      .catch((err) => {
+        setInvoices([]);
+        toast({ title: "Couldn't load invoices", description: err instanceof Error ? err.message : undefined, variant: "error" });
+      });
     apiFetch<GstSummary>(`/api/admin/invoices/gst-summary?month=${month}`).then(setSummary).catch(() => setSummary(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month]);
 
   return (

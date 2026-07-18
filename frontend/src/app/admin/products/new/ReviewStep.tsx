@@ -2,12 +2,16 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { fileToDataUri, compressImageForUpload } from "@/lib/imageQuality";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import type { WizardProduct, WizardVariant } from "./types";
+
+const MAX_IMAGES_PER_COLOR = 4;
 
 function slugifyToken(s: string) {
   return s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
@@ -32,8 +36,16 @@ export function ReviewStep({
     [...new Set(product.variants.map((v) => v.color))].join(", ") || "Black"
   );
   const [variants, setVariants] = React.useState<WizardVariant[]>(product.variants);
+  // One hex value per color name — the source of truth for every swatch
+  // preview (table rows, storefront). Keyed by name so it survives
+  // regenerating variant rows and applies even without re-clicking Generate.
+  const [colorHexInput, setColorHexInput] = React.useState<Record<string, string>>(() =>
+    Object.fromEntries(product.variants.filter((v) => v.colorHex).map((v) => [v.color, v.colorHex!]))
+  );
   const [saving, setSaving] = React.useState(false);
   const [publishing, setPublishing] = React.useState(false);
+
+  const uniqueColors = [...new Set(colorsInput.split(",").map((c) => c.trim()).filter(Boolean))];
 
   function generateVariants() {
     const sizes = sizesInput.split(",").map((s) => s.trim()).filter(Boolean);
@@ -46,6 +58,7 @@ export function ReviewStep({
           existing ?? {
             size,
             color,
+            colorHex: colorHexInput[color],
             sku: `${slugifyToken(product.slug).slice(0, 12)}-${slugifyToken(size)}-${slugifyToken(color)}`,
             stock: 10,
           }
@@ -58,10 +71,14 @@ export function ReviewStep({
   async function saveVariants() {
     setSaving(true);
     try {
+      // Apply whatever hex is currently set per color, even if the rows
+      // were generated before the color picker was touched.
+      const withHex = variants.map((v) => ({ ...v, colorHex: colorHexInput[v.color] ?? v.colorHex }));
       const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}`, {
         method: "PATCH",
-        json: { variants },
+        json: { variants: withHex },
       });
+      setVariants(withHex);
       onProductChange(data.product);
       toast({ title: "Variants saved", variant: "success" });
     } catch (err) {
@@ -108,6 +125,26 @@ export function ReviewStep({
           <Input label="Sizes (comma-separated)" value={sizesInput} onChange={(e) => setSizesInput(e.target.value)} />
           <Input label="Colors (comma-separated)" value={colorsInput} onChange={(e) => setColorsInput(e.target.value)} />
         </div>
+
+        {uniqueColors.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {uniqueColors.map((color) => (
+              <label
+                key={color}
+                className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs"
+              >
+                <input
+                  type="color"
+                  value={colorHexInput[color] ?? "#000000"}
+                  onChange={(e) => setColorHexInput((s) => ({ ...s, [color]: e.target.value }))}
+                  className="h-6 w-6 cursor-pointer rounded border-0 bg-transparent p-0"
+                />
+                {color}
+              </label>
+            ))}
+          </div>
+        )}
+
         <Button type="button" size="sm" variant="outline" className="mt-3" magnetic={false} onClick={generateVariants}>
           Generate variant rows
         </Button>
@@ -127,7 +164,15 @@ export function ReviewStep({
                 {variants.map((v, i) => (
                   <tr key={`${v.size}-${v.color}`} className="border-t border-border">
                     <td className="px-3 py-2">{v.size}</td>
-                    <td className="px-3 py-2">{v.color}</td>
+                    <td className="px-3 py-2">
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
+                          style={{ backgroundColor: colorHexInput[v.color] ?? v.colorHex ?? "#ccc" }}
+                        />
+                        {v.color}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-foreground/50">{v.sku}</td>
                     <td className="px-3 py-2">
                       <input
@@ -153,6 +198,8 @@ export function ReviewStep({
         </Button>
       </div>
 
+      {uniqueColors.length > 0 && <ColorPhotosSection colors={uniqueColors} product={product} onProductChange={onProductChange} />}
+
       <div className="rounded-2xl border border-border bg-surface p-5">
         <h2 className="font-display text-lg">{product.name}</h2>
         <div className="mt-1 flex items-center gap-2">
@@ -169,6 +216,109 @@ export function ReviewStep({
         <Button type="button" disabled={publishing || flaggedImages.length > 0} onClick={handlePublish} className="flex-1">
           {publishing ? "Publishing…" : "Publish product"}
         </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Optional extra photos scoped to one color (up to 4). When a shopper picks
+ * that color on the storefront, these replace the default gallery — colors
+ * left without any get the default set instead. */
+function ColorPhotosSection({
+  colors,
+  product,
+  onProductChange,
+}: {
+  colors: string[];
+  product: WizardProduct;
+  onProductChange: (p: WizardProduct) => void;
+}) {
+  const { toast } = useToast();
+  const [uploadingColor, setUploadingColor] = React.useState<string | null>(null);
+  const [discardingId, setDiscardingId] = React.useState<string | null>(null);
+
+  async function handleUpload(color: string, file: File) {
+    setUploadingColor(color);
+    try {
+      const raw = await fileToDataUri(file);
+      const dataUri = await compressImageForUpload(raw);
+      const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}/images`, {
+        method: "POST",
+        json: { dataUri, type: "ORIGINAL", color },
+      });
+      onProductChange(data.product);
+    } catch (err) {
+      toast({ title: "Upload failed", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setUploadingColor(null);
+    }
+  }
+
+  async function handleDiscard(imageId: string) {
+    setDiscardingId(imageId);
+    try {
+      const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}/images/${imageId}`, {
+        method: "DELETE",
+      });
+      onProductChange(data.product);
+    } catch (err) {
+      toast({ title: "Couldn't remove photo", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setDiscardingId(null);
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="font-display text-lg">Color-specific photos</h2>
+      <p className="mt-1 text-sm text-foreground/60">
+        Optional — add up to {MAX_IMAGES_PER_COLOR} photos for a color. A shopper who picks that color sees only
+        these; colors with none just show the default gallery above.
+      </p>
+      <div className="mt-4 space-y-4">
+        {colors.map((color) => {
+          const photos = product.images.filter((i) => i.color === color);
+          const atLimit = photos.length >= MAX_IMAGES_PER_COLOR;
+          return (
+            <div key={color} className="rounded-xl border border-border p-4">
+              <p className="text-sm font-medium">{color}</p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {photos.map((img) => (
+                  <div key={img._id} className="group relative h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-foreground/5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.secureUrl} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      disabled={discardingId === img._id}
+                      onClick={() => handleDiscard(img._id)}
+                      className="absolute right-1 top-1 rounded-full bg-ink/70 p-1 text-ivory opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-100"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                {!atLimit && (
+                  <label
+                    className={`flex h-24 w-20 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border text-center text-[11px] text-foreground/40 hover:border-foreground/30 ${uploadingColor === color ? "pointer-events-none opacity-50" : ""}`}
+                  >
+                    {uploadingColor === color ? "Uploading…" : "+ Add photo"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingColor === color}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) handleUpload(color, file);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

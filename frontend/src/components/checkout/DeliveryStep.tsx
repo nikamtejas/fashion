@@ -219,7 +219,7 @@ export function DeliveryStep({
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Button variant="outline" magnetic={false} onClick={onBack}>
           Back
         </Button>
