@@ -16,7 +16,18 @@ router.get("/", async (req, res) => {
   const query: Record<string, unknown> = {};
   if (q) query.name = { $regex: escapeRegex(q), $options: "i" };
 
-  const products = await Product.find(query).select("name slug status variants images").sort({ name: 1 }).lean();
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(100, Number(req.query.limit) || 60);
+
+  const [products, total] = await Promise.all([
+    Product.find(query)
+      .select("name slug status variants images")
+      .sort({ name: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    Product.countDocuments(query),
+  ]);
   res.json({
     products: products.map((p) => ({
       id: String(p._id),
@@ -27,6 +38,9 @@ router.get("/", async (req, res) => {
       variants: p.variants.map((v) => ({ sku: v.sku, size: v.size, color: v.color, stock: v.stock })),
       totalStock: p.variants.reduce((s, v) => s + v.stock, 0),
     })),
+    total,
+    page,
+    hasMore: page * limit < total,
   });
 });
 

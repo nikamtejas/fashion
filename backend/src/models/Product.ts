@@ -91,6 +91,9 @@ ProductSchema.index({ status: 1, createdAt: -1 });
 ProductSchema.index({ status: 1, "pricing.finalPrice": 1 });
 ProductSchema.index({ "variants.size": 1 });
 ProductSchema.index({ "variants.color": 1 });
+// The inventory grid sorts every unfiltered load by name — was a full
+// collection sort with nothing to back it.
+ProductSchema.index({ name: 1 });
 
 export type ProductDoc = InferSchemaType<typeof ProductSchema>;
 

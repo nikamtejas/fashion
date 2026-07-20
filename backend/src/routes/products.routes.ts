@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { Product } from "../models/Product";
-import { Category } from "../models/Category";
 import { Review } from "../models/Review";
 import { requireAuth } from "../middleware/auth";
 import { cloudinaryUrl } from "../lib/cloudinary";
 import { escapeRegex } from "../lib/escapeRegex";
+import { getCategoryIdBySlug } from "../lib/categoryCache";
 import { z } from "zod";
 
 const router = Router();
@@ -64,9 +64,9 @@ router.get("/", async (req, res) => {
   if (slugs) query.slug = { $in: slugs.split(",").map((s) => s.trim()).filter(Boolean) };
 
   if (category) {
-    const cat = await Category.findOne({ slug: category }).select("_id").lean();
-    if (!cat) return res.json({ products: [], total: 0, page: 1, pages: 0 });
-    query.category = cat._id;
+    const catId = await getCategoryIdBySlug(category);
+    if (!catId) return res.json({ products: [], total: 0, page: 1, pages: 0 });
+    query.category = catId;
   }
   // MegaMenu subcategory links (e.g. ?category=men&sub=shirts) match against
   // the product's tags — the sub slug is stored verbatim as one of the tags.

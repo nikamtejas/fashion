@@ -53,6 +53,12 @@ const RefundRequestSchema = new Schema(
   { timestamps: true }
 );
 
+// Dashboard KPIs filter REFUNDED requests by updatedAt range on every load.
+RefundRequestSchema.index({ status: 1, updatedAt: -1 });
+// The admin returns list defaults to sorting every return by createdAt with
+// no status filter — without this, that's a full collection scan + sort.
+RefundRequestSchema.index({ createdAt: -1 });
+
 export type RefundRequestDoc = InferSchemaType<typeof RefundRequestSchema>;
 
 export const RefundRequest: Model<RefundRequestDoc> =

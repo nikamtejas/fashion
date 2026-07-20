@@ -77,12 +77,13 @@ router.get("/lookup/:qrCode", async (req, res) => {
   const appt = await PickupAppointment.findOne({ qrCode, type: "PICKUP" }).populate("storeLocation", "name city").lean();
   if (!appt) return res.status(404).json({ error: "No pickup appointment matches this code" });
 
-  const order = await Order.findById(appt.order)
-    .select("orderNumber status items pricing user")
-    .populate("user", "name email phone")
-    .lean();
+  // payment only needs appt.order (already known), not the resolved order
+  // doc — no reason to wait for the order lookup before starting it.
+  const [order, payment] = await Promise.all([
+    Order.findById(appt.order).select("orderNumber status items pricing user").populate("user", "name email phone").lean(),
+    Payment.findOne({ order: appt.order }).select("method status").lean(),
+  ]);
   if (!order) return res.status(404).json({ error: "Order for this pickup no longer exists" });
-  const payment = await Payment.findOne({ order: order._id }).select("method status").lean();
 
   const user = order.user as unknown as { name?: string; email?: string; phone?: string } | null;
   res.json({

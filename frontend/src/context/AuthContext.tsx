@@ -27,6 +27,12 @@ interface AuthContextValue {
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 const USER_CACHE_KEY = "luxeloom:auth-user";
+// On a shared/kiosk browser, a cache with no expiry would keep showing
+// whoever last used it — name, avatar, cart/favorite counts — to the next
+// person for as long as the entry sits in localStorage, until /api/auth/me
+// corrects it a moment later. Bounding it to a short window shrinks that
+// exposure to "someone used this browser very recently" instead of "ever."
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 /** Last-known user, so a fresh mount (hard reload, new tab) can render the
  * real profile icon immediately instead of a "loading" skeleton while
@@ -37,7 +43,10 @@ function readCachedUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(USER_CACHE_KEY);
-    return raw ? (JSON.parse(raw) as AuthUser) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { user: AuthUser; cachedAt: number };
+    if (Date.now() - parsed.cachedAt > CACHE_TTL_MS) return null;
+    return parsed.user;
   } catch {
     return null;
   }
@@ -46,7 +55,7 @@ function readCachedUser(): AuthUser | null {
 function writeCachedUser(user: AuthUser | null) {
   if (typeof window === "undefined") return;
   try {
-    if (user) window.localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+    if (user) window.localStorage.setItem(USER_CACHE_KEY, JSON.stringify({ user, cachedAt: Date.now() }));
     else window.localStorage.removeItem(USER_CACHE_KEY);
   } catch {
     // Private-mode/quota storage errors aren't worth surfacing here.

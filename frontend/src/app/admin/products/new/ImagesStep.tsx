@@ -53,6 +53,10 @@ export function ImagesStep({
 }) {
   const { toast } = useToast();
   const [jobState, setJobState] = React.useState<JobState | null>(null);
+  // Which color jobState actually belongs to — a job for "Navy" must not
+  // paint a "generating…" spinner on the "Black" tab's cards just because
+  // the admin switched tabs while it was still running.
+  const [jobColor, setJobColor] = React.useState<string | null>(null);
   const [generating, setGenerating] = React.useState(false);
   const [lifestylePreset, setLifestylePreset] = React.useState("street");
   const [modelOptions, setModelOptions] = React.useState({
@@ -153,6 +157,7 @@ export function ImagesStep({
   async function handleGenerate() {
     setGenerating(true);
     setJobState(null);
+    setJobColor(activeColor);
     try {
       const { jobId } = await apiFetch<{ jobId: string }>(`/api/admin/products/${product._id}/photo-studio`, {
         method: "POST",
@@ -204,6 +209,7 @@ export function ImagesStep({
   }
 
   async function handleRegenerate(slot: Slot, instruction?: string) {
+    setJobColor(activeColor);
     setJobState((prev) => ({
       photos: { ...(prev?.photos ?? emptyPhotos()), [slot]: { status: "regenerating" } },
       done: false,
@@ -271,6 +277,8 @@ export function ImagesStep({
   }
 
   const canGenerate = Boolean(front && back);
+  // Only surface job progress on the tab it's actually for.
+  const visibleJobState = jobColor === activeColor ? jobState : null;
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -451,7 +459,8 @@ export function ImagesStep({
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <PhotoResultCard
           slotKey="studio_front"
-          slotState={jobState?.photos.studio_front}
+          slotState={visibleJobState?.photos.studio_front}
+          jobRunning={generating}
           image={studioFront}
           referenceUrl={front?.secureUrl}
           onRegenerate={(instruction) => handleRegenerate("studio_front", instruction)}
@@ -461,7 +470,8 @@ export function ImagesStep({
         />
         <PhotoResultCard
           slotKey="studio_back"
-          slotState={jobState?.photos.studio_back}
+          slotState={visibleJobState?.photos.studio_back}
+          jobRunning={generating}
           image={studioBack}
           referenceUrl={back?.secureUrl}
           onRegenerate={(instruction) => handleRegenerate("studio_back", instruction)}
@@ -471,7 +481,8 @@ export function ImagesStep({
         />
         <PhotoResultCard
           slotKey="model_front"
-          slotState={jobState?.photos.model_front}
+          slotState={visibleJobState?.photos.model_front}
+          jobRunning={generating}
           image={modelFront}
           referenceUrl={front?.secureUrl}
           onRegenerate={(instruction) => handleRegenerate("model_front", instruction)}
@@ -482,7 +493,8 @@ export function ImagesStep({
         />
         <PhotoResultCard
           slotKey="lifestyle"
-          slotState={jobState?.photos.lifestyle}
+          slotState={visibleJobState?.photos.lifestyle}
+          jobRunning={generating}
           image={lifestyle}
           referenceUrl={front?.secureUrl}
           onRegenerate={(instruction) => handleRegenerate("lifestyle", instruction)}
@@ -548,6 +560,7 @@ function LabeledSelect({
 function PhotoResultCard({
   slotKey,
   slotState,
+  jobRunning,
   image,
   referenceUrl,
   onRegenerate,
@@ -558,6 +571,10 @@ function PhotoResultCard({
 }: {
   slotKey: Slot;
   slotState?: PhotoSlotState;
+  /** A generate job is in flight for SOME color (maybe this tab, maybe not)
+   * — regenerating this slot right now could race that job's own write to
+   * it, so block it regardless of which tab is showing. */
+  jobRunning?: boolean;
   image?: WizardImage;
   referenceUrl?: string;
   onRegenerate: (instruction?: string) => void;
@@ -640,7 +657,7 @@ function PhotoResultCard({
       )}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" magnetic={false} disabled={isBusy} onClick={() => setShowInstruction((v) => !v)}>
+        <Button size="sm" variant="outline" magnetic={false} disabled={isBusy || jobRunning} onClick={() => setShowInstruction((v) => !v)}>
           <RotateCcw className="h-3.5 w-3.5" /> Regenerate
         </Button>
         {onDiscard && (

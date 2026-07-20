@@ -213,6 +213,7 @@ router.get("/refunds", async (req, res) => {
     Payment.find({ status: "REFUND_PENDING" })
       .populate({ path: "order", select: "orderNumber user pricing.total cancelledAt", populate: { path: "user", select: "email" } })
       .sort({ updatedAt: -1 })
+      .limit(200)
       .lean(),
     Payment.find({ status: "REFUNDED" })
       .populate({ path: "order", select: "orderNumber user pricing.total cancelledAt status", populate: { path: "user", select: "email" } })

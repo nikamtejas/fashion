@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { apiFetch } from "@/lib/api";
 
 const CACHE_KEY = "luxeloom:favorite-ids";
+// Bounds how long a previous user's favorites can flash on a shared/kiosk
+// browser before the real /api/favorites/ids call corrects it — see the
+// matching note in AuthContext.tsx.
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 /** Last-known favorited IDs, so the navbar heart badge and per-product heart
  * fills show their real value on first paint instead of starting at 0/empty
@@ -10,7 +14,10 @@ function readCache(): string[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { ids: string[]; cachedAt: number };
+    if (Date.now() - parsed.cachedAt > CACHE_TTL_MS) return [];
+    return parsed.ids;
   } catch {
     return [];
   }
@@ -19,7 +26,7 @@ function readCache(): string[] {
 function writeCache(ids: Iterable<string>) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(CACHE_KEY, JSON.stringify([...ids]));
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify({ ids: [...ids], cachedAt: Date.now() }));
   } catch {
     // Private-mode/quota storage errors aren't worth surfacing here.
   }

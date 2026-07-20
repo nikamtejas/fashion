@@ -220,11 +220,23 @@ router.patch("/:id/images/rename-color", async (req, res) => {
   if (!product) return res.status(404).json({ error: "Product not found" });
 
   const from = parsed.data.from ?? undefined;
+  const to = parsed.data.to;
+  if (to === from) return res.status(400).json({ error: "That's already the current name" });
+
+  // Renaming into a name that's already in use would silently merge two
+  // colors' photos — e.g. two ORIGINAL/FRONT images both tagged the same
+  // color, with one becoming permanently unreachable in the wizard's
+  // .find()-based lookups while still sitting in the array. Reject instead.
+  const collision = product.images.some((img) => img.color === to) || product.variants.some((v) => v.color === to);
+  if (collision) {
+    return res.status(409).json({ error: `"${to}" is already used by another color on this product — pick a different name` });
+  }
+
   for (const img of product.images) {
-    if (img.color === from) img.color = parsed.data.to;
+    if (img.color === from) img.color = to;
   }
   for (const v of product.variants) {
-    if ((v.color as string | undefined) === from) v.color = parsed.data.to;
+    if ((v.color as string | undefined) === from) v.color = to;
   }
   await product.save();
 

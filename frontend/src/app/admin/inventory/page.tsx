@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { apiFetch } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
@@ -21,21 +22,46 @@ export default function AdminInventoryPage() {
   const { toast } = useToast();
   const [q, setQ] = React.useState("");
   const [products, setProducts] = React.useState<InventoryProduct[] | null>(null);
+  const [page, setPage] = React.useState(1);
+  const [hasMore, setHasMore] = React.useState(false);
+  const [loadingMore, setLoadingMore] = React.useState(false);
 
   React.useEffect(() => {
     const handle = setTimeout(() => {
       // Debounced search; setState in the async callback.
-       
-      apiFetch<{ products: InventoryProduct[] }>(`/api/admin/inventory?q=${encodeURIComponent(q)}`)
-        .then((d) => setProducts(d.products))
+
+      apiFetch<{ products: InventoryProduct[]; hasMore: boolean }>(`/api/admin/inventory?q=${encodeURIComponent(q)}&page=1`)
+        .then((d) => {
+          setProducts(d.products);
+          setHasMore(d.hasMore);
+          setPage(1);
+        })
         .catch((err) => {
           setProducts([]);
+          setHasMore(false);
           toast({ title: "Couldn't load inventory", description: err instanceof Error ? err.message : undefined, variant: "error" });
         });
     }, 200);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
+
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const d = await apiFetch<{ products: InventoryProduct[]; hasMore: boolean }>(
+        `/api/admin/inventory?q=${encodeURIComponent(q)}&page=${nextPage}`
+      );
+      setProducts((prev) => [...(prev ?? []), ...d.products]);
+      setHasMore(d.hasMore);
+      setPage(nextPage);
+    } catch (err) {
+      toast({ title: "Couldn't load more", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function saveStock(productId: string, sku: string, stock: number) {
     try {
@@ -113,6 +139,14 @@ export default function AdminInventoryPage() {
           </div>
         ))}
       </div>
+
+      {hasMore && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="outline" magnetic={false} disabled={loadingMore} onClick={loadMore}>
+            {loadingMore ? "Loading…" : "Load more"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

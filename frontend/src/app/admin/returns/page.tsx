@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { CheckCircle2, XCircle, ScanLine, Banknote, Camera, Keyboard, PackageSearch, CalendarClock } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
@@ -8,7 +9,13 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { QrCameraScanner } from "@/components/admin/QrCameraScanner";
+
+// Pulls in jsqr — only actually used once the admin opts into "Scan with
+// camera", so there's no reason to ship it in this route's initial JS.
+const QrCameraScanner = dynamic(() => import("@/components/admin/QrCameraScanner").then((m) => m.QrCameraScanner), {
+  ssr: false,
+  loading: () => <div className="aspect-square w-full animate-pulse rounded-2xl bg-foreground/5" />,
+});
 
 interface EligibilityResult {
   order: {

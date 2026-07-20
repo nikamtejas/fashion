@@ -20,6 +20,10 @@ const PickupAppointmentSchema = new Schema(
   { timestamps: true }
 );
 
+// The ops pickup/return agenda filters by type + date together — with only
+// single-field indexes, Mongo could use one or the other, not both.
+PickupAppointmentSchema.index({ type: 1, date: 1, storeLocation: 1 });
+
 export type PickupAppointmentDoc = InferSchemaType<typeof PickupAppointmentSchema>;
 
 export const PickupAppointment: Model<PickupAppointmentDoc> =

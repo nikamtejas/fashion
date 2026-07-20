@@ -77,6 +77,14 @@ const OrderSchema = new Schema(
   { timestamps: true }
 );
 
+// Every hot admin/ops path (dashboard KPIs, admin order list, customer order
+// history) filters and/or sorts by createdAt — with no index on it at all,
+// each of these was a full collection scan/sort on the busiest collection
+// in the app.
+OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ status: 1, createdAt: -1 });
+OrderSchema.index({ user: 1, createdAt: -1 });
+
 export type OrderDoc = InferSchemaType<typeof OrderSchema>;
 
 export const Order: Model<OrderDoc> = models.Order ?? model<OrderDoc>("Order", OrderSchema);

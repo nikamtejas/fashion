@@ -51,6 +51,10 @@ export interface CartView {
 }
 
 const CART_COUNT_CACHE_KEY = "luxeloom:cart-count";
+// Bounds how long a previous user's cart count can flash on a shared/kiosk
+// browser before the real /api/cart call corrects it — see the matching
+// note in AuthContext.tsx.
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 /** Last-known item count, so the navbar bag badge shows its real value on
  * first paint instead of starting at 0 and popping in once /api/cart
@@ -59,7 +63,11 @@ const CART_COUNT_CACHE_KEY = "luxeloom:cart-count";
 function readCachedCount(): number {
   if (typeof window === "undefined") return 0;
   try {
-    return Number(window.localStorage.getItem(CART_COUNT_CACHE_KEY)) || 0;
+    const raw = window.localStorage.getItem(CART_COUNT_CACHE_KEY);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw) as { count: number; cachedAt: number };
+    if (Date.now() - parsed.cachedAt > CACHE_TTL_MS) return 0;
+    return parsed.count || 0;
   } catch {
     return 0;
   }
@@ -68,7 +76,7 @@ function readCachedCount(): number {
 function writeCachedCount(count: number) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(CART_COUNT_CACHE_KEY, String(count));
+    window.localStorage.setItem(CART_COUNT_CACHE_KEY, JSON.stringify({ count, cachedAt: Date.now() }));
   } catch {
     // Private-mode/quota storage errors aren't worth surfacing here.
   }

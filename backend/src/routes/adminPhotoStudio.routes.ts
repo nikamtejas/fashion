@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Types } from "mongoose";
 import { Product } from "../models/Product";
 import { Category } from "../models/Category";
 import { requireCatalog } from "../middleware/auth";
@@ -40,31 +41,68 @@ async function saveGeneratedImage(
   const dataUri = `data:${image.mimeType};base64,${image.base64}`;
   const uploaded = await uploadImage(dataUri, { folder: productFolder(slug) });
 
-  const product = await Product.findById(productId);
-  if (!product) throw new Error("Product disappeared mid-job");
-
-  // Replace any prior generated image occupying the same side/slot FOR THIS
-  // COLOR — each color keeps its own independent 4-photo set, so generating
-  // one color must never touch another color's (or the default set's)
-  // already-generated photos.
-  product.images = product.images.filter((img) => {
-    if (img.type !== type) return true;
-    if (img.color !== color) return true;
-    if (type === "STUDIO") return img.side !== slotMeta.side;
-    return img.slot !== slotMeta.slot;
-  }) as typeof product.images;
-
-  product.images.push({
+  const newImage = {
+    _id: new Types.ObjectId(),
     publicId: uploaded.publicId,
     secureUrl: uploaded.secureUrl,
     type,
     side: slotMeta.side,
     slot: slotMeta.slot,
-    color,
-    order: product.images.length,
+    color: color ?? null,
+    // Monotonic and race-free — avoids reading the array first to compute a
+    // sequential index (see the atomic update below for why that matters).
+    order: Date.now(),
     faithfulnessFlag,
-  } as (typeof product.images)[number]);
-  await product.save();
+  };
+
+  // A single atomic aggregation-pipeline update: drop any prior image in
+  // this same type/side-or-slot/color slot and append the new one, in one
+  // server-side operation. The previous version read the whole document,
+  // filtered the array in JS, then .save()'d it — studio_front and
+  // studio_back save concurrently from the same job (Promise.allSettled
+  // below), so both read the same starting doc and raced to write it back;
+  // Mongoose's document versioning correctly rejected the loser, but by
+  // then Gemini had already generated the photo and it was already
+  // uploaded to Cloudinary, so the admin saw a spurious "failed" on a
+  // generation that actually succeeded, and the Cloudinary asset was
+  // orphaned. This form can't race with itself the same way — whichever
+  // concurrent call's pipeline runs last for a given slot simply wins,
+  // with no read-your-own-write dependency and no version conflict.
+  const matchSlot: Record<string, unknown> = { $eq: ["$$this.type", type] };
+  const result = await Product.updateOne(
+    { _id: productId },
+    [
+      {
+        $set: {
+          images: {
+            $concatArrays: [
+              {
+                $filter: {
+                  input: "$images",
+                  cond: {
+                    $not: {
+                      $and: [
+                        matchSlot,
+                        { $eq: [{ $ifNull: ["$$this.color", null] }, color ?? null] },
+                        type === "STUDIO"
+                          ? { $eq: ["$$this.side", slotMeta.side] }
+                          : { $eq: ["$$this.slot", slotMeta.slot] },
+                      ],
+                    },
+                  },
+                },
+              },
+              [newImage],
+            ],
+          },
+        },
+      },
+    ],
+    // Mongoose 9 requires this flag explicitly before it'll accept an
+    // aggregation-pipeline (array) update instead of a plain update object.
+    { updatePipeline: true }
+  );
+  if (result.matchedCount === 0) throw new Error("Product disappeared mid-job");
 
   return { publicId: uploaded.publicId, secureUrl: uploaded.secureUrl };
 }
