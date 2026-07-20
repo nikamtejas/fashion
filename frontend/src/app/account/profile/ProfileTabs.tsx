@@ -7,12 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { PersonalInfoSection } from "./PersonalInfoSection";
 import { AddressesSection } from "./AddressesSection";
 import { SupportSection } from "./SupportSection";
+import { LoyaltySection } from "./LoyaltySection";
 
 export default function ProfileTabs() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = ["profile", "addresses", "support"].includes(searchParams.get("tab") ?? "")
+  const initialTab = ["profile", "addresses", "loyalty", "support"].includes(searchParams.get("tab") ?? "")
     ? (searchParams.get("tab") as string)
     : "profile";
 
@@ -33,6 +34,7 @@ export default function ProfileTabs() {
         <TabsList>
           <TabsTrigger value="profile">Personal info</TabsTrigger>
           <TabsTrigger value="addresses">Addresses</TabsTrigger>
+          <TabsTrigger value="loyalty">Loyalty points</TabsTrigger>
           <TabsTrigger value="support">Support</TabsTrigger>
         </TabsList>
         <TabsContent value="profile">
@@ -40,6 +42,9 @@ export default function ProfileTabs() {
         </TabsContent>
         <TabsContent value="addresses">
           <AddressesSection />
+        </TabsContent>
+        <TabsContent value="loyalty">
+          <LoyaltySection />
         </TabsContent>
         <TabsContent value="support">
           <SupportSection />
