@@ -50,6 +50,30 @@ export interface CartView {
   droppedCoupon?: { code: string; reason: string };
 }
 
+const CART_COUNT_CACHE_KEY = "luxeloom:cart-count";
+
+/** Last-known item count, so the navbar bag badge shows its real value on
+ * first paint instead of starting at 0 and popping in once /api/cart
+ * resolves. Only the count is cached — the full cart (prices, discounts)
+ * always comes fresh from the server. */
+function readCachedCount(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    return Number(window.localStorage.getItem(CART_COUNT_CACHE_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeCachedCount(count: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CART_COUNT_CACHE_KEY, String(count));
+  } catch {
+    // Private-mode/quota storage errors aren't worth surfacing here.
+  }
+}
+
 const EMPTY_TOTALS: CartTotals = {
   itemCount: 0,
   preTaxSubtotal: 0,
@@ -71,6 +95,7 @@ interface CartStore {
 
   openDrawer: () => void;
   closeDrawer: () => void;
+  hydrateFromCache: () => void;
   refresh: () => Promise<void>;
   addItem: (productId: string, sku: string, qty?: number) => Promise<void>;
   updateItem: (sku: string, patch: { qty?: number; newSku?: string }) => Promise<void>;
@@ -85,9 +110,16 @@ interface CartStore {
 
 function apply(set: (partial: Partial<CartStore>) => void, cart: CartView) {
   set({ cart, loaded: true, count: cart.totals.itemCount });
+  writeCachedCount(cart.totals.itemCount);
 }
 
 export const useCartStore = create<CartStore>((set) => ({
+  // Must start at 0 in every environment (server AND the client's first
+  // hydration render) — seeding from localStorage here would read a real
+  // count client-side but always read 0 server-side, a mismatch between the
+  // server-rendered HTML and React's first client render. `hydrateFromCache`
+  // below applies the cached count a moment later instead, from a layout
+  // effect that only ever runs client-side, after hydration is already done.
   cart: null,
   loaded: false,
   drawerOpen: false,
@@ -95,6 +127,10 @@ export const useCartStore = create<CartStore>((set) => ({
 
   openDrawer: () => set({ drawerOpen: true }),
   closeDrawer: () => set({ drawerOpen: false }),
+  hydrateFromCache: () => {
+    const cached = readCachedCount();
+    if (cached > 0) set({ count: cached });
+  },
 
   refresh: async () => {
     try {
@@ -102,6 +138,7 @@ export const useCartStore = create<CartStore>((set) => ({
       apply(set, data.cart);
     } catch {
       set({ cart: { items: [], savedItems: [], coupon: null, totals: EMPTY_TOTALS }, loaded: true, count: 0 });
+      writeCachedCount(0);
     }
   },
 
@@ -161,5 +198,8 @@ export const useCartStore = create<CartStore>((set) => ({
     apply(set, data.cart);
   },
 
-  clear: () => set({ cart: null, loaded: false, count: 0, drawerOpen: false }),
+  clear: () => {
+    set({ cart: null, loaded: false, count: 0, drawerOpen: false });
+    writeCachedCount(0);
+  },
 }));

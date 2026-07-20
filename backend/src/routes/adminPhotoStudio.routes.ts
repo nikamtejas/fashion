@@ -34,7 +34,8 @@ async function saveGeneratedImage(
   type: "STUDIO" | "AI_MODEL",
   slotMeta: { side?: "FRONT" | "BACK"; slot?: "MODEL_FRONT" | "LIFESTYLE" },
   image: ImageInput,
-  faithfulnessFlag: boolean
+  faithfulnessFlag: boolean,
+  color: string | undefined
 ) {
   const dataUri = `data:${image.mimeType};base64,${image.base64}`;
   const uploaded = await uploadImage(dataUri, { folder: productFolder(slug) });
@@ -42,9 +43,13 @@ async function saveGeneratedImage(
   const product = await Product.findById(productId);
   if (!product) throw new Error("Product disappeared mid-job");
 
-  // Replace any prior generated image occupying the same side/slot.
+  // Replace any prior generated image occupying the same side/slot FOR THIS
+  // COLOR — each color keeps its own independent 4-photo set, so generating
+  // one color must never touch another color's (or the default set's)
+  // already-generated photos.
   product.images = product.images.filter((img) => {
     if (img.type !== type) return true;
+    if (img.color !== color) return true;
     if (type === "STUDIO") return img.side !== slotMeta.side;
     return img.slot !== slotMeta.slot;
   }) as typeof product.images;
@@ -55,6 +60,7 @@ async function saveGeneratedImage(
     type,
     side: slotMeta.side,
     slot: slotMeta.slot,
+    color,
     order: product.images.length,
     faithfulnessFlag,
   } as (typeof product.images)[number]);
@@ -75,6 +81,10 @@ const startSchema = z.object({
     .partial()
     .optional(),
   lifestylePreset: z.string().optional(),
+  // Absent = the default, untagged photo set. Present = generate this
+  // color's own independent 4-photo set from that color's own front/back
+  // originals, without touching any other color's photos.
+  color: z.string().optional(),
 });
 
 router.post("/:id/photo-studio", async (req, res) => {
@@ -84,14 +94,22 @@ router.post("/:id/photo-studio", async (req, res) => {
   const product = await Product.findById(req.params.id);
   if (!product) return res.status(404).json({ error: "Product not found" });
 
-  const front = product.images.find((img) => img.type === "ORIGINAL" && img.side === "FRONT");
-  const back = product.images.find((img) => img.type === "ORIGINAL" && img.side === "BACK");
+  const color = parsed.data.color;
+  const front = product.images.find((img) => img.type === "ORIGINAL" && img.side === "FRONT" && img.color === color);
+  const back = product.images.find((img) => img.type === "ORIGINAL" && img.side === "BACK" && img.color === color);
   if (!front || !back) {
-    return res.status(400).json({ error: "Upload both a FRONT and BACK original photo before generating sales photos" });
+    return res.status(400).json({
+      error: color
+        ? `Upload both a FRONT and BACK original photo for ${color} before generating`
+        : "Upload both a FRONT and BACK original photo before generating sales photos",
+    });
   }
 
-  // Regenerate-all: clear any previously generated STUDIO/AI_MODEL photos.
-  product.images = product.images.filter((img) => img.type === "ORIGINAL") as typeof product.images;
+  // Regenerate-all: clear this color's previously generated STUDIO/AI_MODEL
+  // photos only — other colors' (and the default set's) photos are untouched.
+  product.images = product.images.filter(
+    (img) => img.type === "ORIGINAL" || img.color !== color
+  ) as typeof product.images;
   await product.save();
 
   const { jobId, entry } = createJob(String(product._id));
@@ -108,6 +126,7 @@ router.post("/:id/photo-studio", async (req, res) => {
     backUrl: back.secureUrl,
     modelOptions,
     lifestylePreset,
+    color,
     entry,
   }).catch((err) => {
     // eslint-disable-next-line no-console
@@ -123,24 +142,27 @@ async function runPhotoStudioJob(opts: {
   backUrl: string;
   modelOptions: { gender: string; bodyType: string; skinTone: string; pose: string };
   lifestylePreset: LifestylePreset;
+  color: string | undefined;
   entry: ReturnType<typeof createJob>["entry"];
 }) {
-  const { productId, slug, entry } = opts;
+  const { productId, slug, color, entry } = opts;
   const front = await fetchAsImageInput(opts.frontUrl);
   const back = await fetchAsImageInput(opts.backUrl);
+
+  const seedSuffix = color ? `-${color}` : "";
 
   // Photos 1 & 2 run in parallel — independent, no faithfulness gate.
   const studioResults = await Promise.allSettled([
     (async () => {
       updateSlot(entry, "studio_front", { status: "generating" });
-      const img = await generateStudioShot(front, `${slug}-front`);
-      const saved = await saveGeneratedImage(productId, slug, "STUDIO", { side: "FRONT" }, img, false);
+      const img = await generateStudioShot(front, `${slug}-front${seedSuffix}`);
+      const saved = await saveGeneratedImage(productId, slug, "STUDIO", { side: "FRONT" }, img, false, color);
       updateSlot(entry, "studio_front", { status: "done", imageUrl: saved.secureUrl, imageId: saved.publicId });
     })(),
     (async () => {
       updateSlot(entry, "studio_back", { status: "generating" });
-      const img = await generateStudioShot(back, `${slug}-back`);
-      const saved = await saveGeneratedImage(productId, slug, "STUDIO", { side: "BACK" }, img, false);
+      const img = await generateStudioShot(back, `${slug}-back${seedSuffix}`);
+      const saved = await saveGeneratedImage(productId, slug, "STUDIO", { side: "BACK" }, img, false, color);
       updateSlot(entry, "studio_back", { status: "done", imageUrl: saved.secureUrl, imageId: saved.publicId });
     })(),
   ]);
@@ -166,7 +188,7 @@ async function runPhotoStudioJob(opts: {
       check = await runFaithfulnessCheck(entry, "model_front", [front, back], img, attempt);
     }
 
-    const saved = await saveGeneratedImage(productId, slug, "AI_MODEL", { slot: "MODEL_FRONT" }, img, !check.pass);
+    const saved = await saveGeneratedImage(productId, slug, "AI_MODEL", { slot: "MODEL_FRONT" }, img, !check.pass, color);
     updateSlot(entry, "model_front", {
       status: check.pass ? "done" : "flagged",
       imageUrl: saved.secureUrl,
@@ -193,7 +215,7 @@ async function runPhotoStudioJob(opts: {
         check = await runFaithfulnessCheck(entry, "lifestyle", [front, back], img, attempt);
       }
 
-      const saved = await saveGeneratedImage(productId, slug, "AI_MODEL", { slot: "LIFESTYLE" }, img, !check.pass);
+      const saved = await saveGeneratedImage(productId, slug, "AI_MODEL", { slot: "LIFESTYLE" }, img, !check.pass, color);
       updateSlot(entry, "lifestyle", {
         status: check.pass ? "done" : "flagged",
         imageUrl: saved.secureUrl,
@@ -272,7 +294,7 @@ router.get("/:id/photo-studio/:jobId/stream", (req, res) => {
   });
 });
 
-const regenerateSchema = z.object({ instruction: z.string().optional() });
+const regenerateSchema = z.object({ instruction: z.string().optional(), color: z.string().optional() });
 
 router.post("/:id/photo-studio/regenerate/:slot", async (req, res) => {
   const slot = req.params.slot as PhotoSlot;
@@ -285,8 +307,9 @@ router.post("/:id/photo-studio/regenerate/:slot", async (req, res) => {
   const product = await Product.findById(req.params.id);
   if (!product) return res.status(404).json({ error: "Product not found" });
 
-  const front = product.images.find((img) => img.type === "ORIGINAL" && img.side === "FRONT");
-  const back = product.images.find((img) => img.type === "ORIGINAL" && img.side === "BACK");
+  const color = parsed.data.color;
+  const front = product.images.find((img) => img.type === "ORIGINAL" && img.side === "FRONT" && img.color === color);
+  const back = product.images.find((img) => img.type === "ORIGINAL" && img.side === "BACK" && img.color === color);
   if (!front || !back) return res.status(400).json({ error: "Missing original photos" });
 
   const frontInput = await fetchAsImageInput(front.secureUrl);
@@ -308,7 +331,8 @@ router.post("/:id/photo-studio/regenerate/:slot", async (req, res) => {
         "STUDIO",
         { side: slot === "studio_front" ? "FRONT" : "BACK" },
         img,
-        false
+        false,
+        color
       );
     } else if (slot === "model_front") {
       const modelDefaults = MODEL_OPTIONS_DEFAULTS[product.gender ?? "UNISEX"];
@@ -316,16 +340,32 @@ router.post("/:id/photo-studio/regenerate/:slot", async (req, res) => {
       const check = await checkFaithfulness([frontInput, backInput], img);
       faithfulnessFlag = !check.pass;
       issues = check.issues;
-      saved = await saveGeneratedImage(String(product._id), product.slug, "AI_MODEL", { slot: "MODEL_FRONT" }, img, faithfulnessFlag);
+      saved = await saveGeneratedImage(
+        String(product._id),
+        product.slug,
+        "AI_MODEL",
+        { slot: "MODEL_FRONT" },
+        img,
+        faithfulnessFlag,
+        color
+      );
     } else {
-      const modelPhoto = product.images.find((i) => i.type === "AI_MODEL" && i.slot === "MODEL_FRONT");
+      const modelPhoto = product.images.find((i) => i.type === "AI_MODEL" && i.slot === "MODEL_FRONT" && i.color === color);
       if (!modelPhoto) return res.status(400).json({ error: "Generate the AI model photo first" });
       const modelInput = await fetchAsImageInput(modelPhoto.secureUrl);
       img = await generateLifestyleShot(modelInput, "street");
       const check = await checkFaithfulness([frontInput, backInput], img);
       faithfulnessFlag = !check.pass;
       issues = check.issues;
-      saved = await saveGeneratedImage(String(product._id), product.slug, "AI_MODEL", { slot: "LIFESTYLE" }, img, faithfulnessFlag);
+      saved = await saveGeneratedImage(
+        String(product._id),
+        product.slug,
+        "AI_MODEL",
+        { slot: "LIFESTYLE" },
+        img,
+        faithfulnessFlag,
+        color
+      );
     }
 
     res.json({ image: saved, faithfulnessFlag, issues });

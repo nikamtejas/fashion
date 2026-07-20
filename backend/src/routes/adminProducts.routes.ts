@@ -154,21 +154,12 @@ const imageUploadSchema = z.object({
   replaceImageId: z.string().optional(),
 });
 
-const MAX_IMAGES_PER_COLOR = 4;
-
 router.post("/:id/images", async (req, res) => {
   const parsed = imageUploadSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid image payload" });
 
   const product = await Product.findById(req.params.id);
   if (!product) return res.status(404).json({ error: "Product not found" });
-
-  if (parsed.data.color && !parsed.data.replaceImageId) {
-    const existingForColor = product.images.filter((img) => img.color === parsed.data.color).length;
-    if (existingForColor >= MAX_IMAGES_PER_COLOR) {
-      return res.status(400).json({ error: `${parsed.data.color} already has the maximum of ${MAX_IMAGES_PER_COLOR} photos` });
-    }
-  }
 
   const uploaded = await uploadImage(parsed.data.dataUri, { folder: productFolder(product.slug) });
 
@@ -177,9 +168,12 @@ router.post("/:id/images", async (req, res) => {
       (img) => String((img as unknown as { _id: unknown })._id) !== parsed.data.replaceImageId
     ) as typeof product.images;
   } else if (parsed.data.side) {
-    // A new FRONT/BACK original replaces any existing one for that side.
+    // A new FRONT/BACK original replaces any existing one for that side AND
+    // color — each color tracks its own front/back reference pair
+    // independently, so uploading a color's photo must not touch another
+    // color's (or the default, untagged set's) originals.
     product.images = product.images.filter(
-      (img) => !(img.type === "ORIGINAL" && img.side === parsed.data.side)
+      (img) => !(img.type === "ORIGINAL" && img.side === parsed.data.side && img.color === parsed.data.color)
     ) as typeof product.images;
   }
 
@@ -205,6 +199,33 @@ router.delete("/:id/images/:imageId", async (req, res) => {
   product.images = product.images.filter(
     (img) => String((img as unknown as { _id: unknown })._id) !== req.params.imageId
   ) as typeof product.images;
+  await product.save();
+
+  res.json({ product });
+});
+
+const renameColorSchema = z.object({
+  from: z.string().nullable(),
+  to: z.string().min(1),
+});
+
+/** Re-tags every image (and variant, if any already exist) carrying `from`
+ * as `to` — used to turn the wizard's untagged "Default" photo set directly
+ * into a named color instead of generating a separate, redundant set. */
+router.patch("/:id/images/rename-color", async (req, res) => {
+  const parsed = renameColorSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid request" });
+
+  const product = await Product.findById(req.params.id);
+  if (!product) return res.status(404).json({ error: "Product not found" });
+
+  const from = parsed.data.from ?? undefined;
+  for (const img of product.images) {
+    if (img.color === from) img.color = parsed.data.to;
+  }
+  for (const v of product.variants) {
+    if ((v.color as string | undefined) === from) v.color = parsed.data.to;
+  }
   await product.save();
 
   res.json({ product });

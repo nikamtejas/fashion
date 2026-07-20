@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check, FileText, PackageSearch } from "lucide-react";
-import confetti from "canvas-confetti";
 import { apiFetch, API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
@@ -53,7 +52,12 @@ export default function ConfirmationPage() {
     apiFetch<{ orders: unknown[] }>("/api/orders")
       .then((d) => {
         if (d.orders.length === 1) {
-          confetti({ particleCount: 140, spread: 90, origin: { y: 0.6 }, colors: ["#C15B3C", "#8A9A7E", "#141414", "#FAF7F2"] });
+          // Loaded on demand — only the very first order of a shopper's
+          // account ever reaches this branch, so it shouldn't ship in this
+          // route's initial JS chunk for everyone else.
+          import("canvas-confetti").then(({ default: confetti }) => {
+            confetti({ particleCount: 140, spread: 90, origin: { y: 0.6 }, colors: ["#C15B3C", "#8A9A7E", "#141414", "#FAF7F2"] });
+          });
         }
       })
       .catch(() => {});

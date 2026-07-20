@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import confetti from "canvas-confetti";
 import { Tag, X, ChevronUp } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
@@ -15,8 +14,12 @@ interface AvailableCoupon {
   discount: number;
 }
 
+// Loaded on demand — only fires once a coupon is successfully applied, so
+// there's no reason to ship it in this route's initial JS chunk.
 function fireConfetti() {
-  confetti({ particleCount: 90, spread: 70, origin: { y: 0.7 }, colors: ["#C15B3C", "#8A9A7E", "#141414", "#FAF7F2"] });
+  import("canvas-confetti").then(({ default: confetti }) => {
+    confetti({ particleCount: 90, spread: 70, origin: { y: 0.7 }, colors: ["#C15B3C", "#8A9A7E", "#141414", "#FAF7F2"] });
+  });
 }
 
 export function CouponBox() {

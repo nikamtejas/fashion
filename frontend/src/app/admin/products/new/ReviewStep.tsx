@@ -2,19 +2,65 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { fileToDataUri, compressImageForUpload } from "@/lib/imageQuality";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import type { WizardProduct, WizardVariant } from "./types";
 
-const MAX_IMAGES_PER_COLOR = 4;
-
 function slugifyToken(s: string) {
   return s.toUpperCase().replace(/[^A-Z0-9]+/g, "");
+}
+
+// Common fashion color names auto-resolve to a real hex without the admin
+// having to touch the color picker — typing "Black, White" alone used to
+// leave colorHex unset (the picker's on-screen "#000000" default was never
+// actually written to state until clicked), so every swatch fell back to
+// the same gray placeholder regardless of the names typed.
+const NAMED_COLOR_HEX: Record<string, string> = {
+  black: "#000000",
+  white: "#ffffff",
+  gray: "#808080",
+  grey: "#808080",
+  charcoal: "#36454f",
+  navy: "#1a2744",
+  blue: "#2563eb",
+  "sky blue": "#38bdf8",
+  denim: "#1560bd",
+  red: "#dc2626",
+  maroon: "#7f1d1d",
+  burgundy: "#7f1d1d",
+  wine: "#722f37",
+  green: "#16a34a",
+  olive: "#556b2f",
+  sage: "#9caf88",
+  mint: "#98ff98",
+  khaki: "#c3b091",
+  beige: "#e8dcc8",
+  tan: "#d2b48c",
+  camel: "#c19a6b",
+  brown: "#78350f",
+  rust: "#b7410e",
+  cream: "#fdf6e3",
+  ivory: "#fffff0",
+  yellow: "#eab308",
+  mustard: "#c9a227",
+  gold: "#d4af37",
+  orange: "#ea580c",
+  peach: "#ffdab9",
+  coral: "#ff7f50",
+  pink: "#ec4899",
+  "hot pink": "#ec4899",
+  purple: "#7e22ce",
+  lavender: "#c4b5fd",
+  teal: "#0d9488",
+  turquoise: "#14b8a6",
+  silver: "#c0c0c0",
+};
+
+function resolveHex(color: string, override?: string): string | undefined {
+  return override ?? NAMED_COLOR_HEX[color.trim().toLowerCase()];
 }
 
 export function ReviewStep({
@@ -32,8 +78,13 @@ export function ReviewStep({
   const [sizesInput, setSizesInput] = React.useState(
     [...new Set(product.variants.map((v) => v.size))].join(", ") || "S, M, L, XL"
   );
+  // Pre-fills with colors already used in the Images step (front/back photos
+  // uploaded per color there) as well as any existing variants — so a color
+  // photographed earlier doesn't need to be retyped here to line up.
   const [colorsInput, setColorsInput] = React.useState(
-    [...new Set(product.variants.map((v) => v.color))].join(", ") || "Black"
+    [...new Set([...product.variants.map((v) => v.color), ...product.images.flatMap((i) => (i.color ? [i.color] : []))])].join(
+      ", "
+    ) || "Black"
   );
   const [variants, setVariants] = React.useState<WizardVariant[]>(product.variants);
   // One hex value per color name — the source of truth for every swatch
@@ -58,7 +109,7 @@ export function ReviewStep({
           existing ?? {
             size,
             color,
-            colorHex: colorHexInput[color],
+            colorHex: resolveHex(color, colorHexInput[color]),
             sku: `${slugifyToken(product.slug).slice(0, 12)}-${slugifyToken(size)}-${slugifyToken(color)}`,
             stock: 10,
           }
@@ -73,7 +124,7 @@ export function ReviewStep({
     try {
       // Apply whatever hex is currently set per color, even if the rows
       // were generated before the color picker was touched.
-      const withHex = variants.map((v) => ({ ...v, colorHex: colorHexInput[v.color] ?? v.colorHex }));
+      const withHex = variants.map((v) => ({ ...v, colorHex: resolveHex(v.color, colorHexInput[v.color]) ?? v.colorHex }));
       const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}`, {
         method: "PATCH",
         json: { variants: withHex },
@@ -108,6 +159,11 @@ export function ReviewStep({
           {(galleryImages.length > 0 ? galleryImages : product.images).map((img) => (
             <div key={img._id} className="relative h-32 w-24 shrink-0 overflow-hidden rounded-lg bg-foreground/5">
               <Image src={img.secureUrl} alt="" fill sizes="96px" className="object-cover" />
+              {img.color && (
+                <span className="absolute bottom-1 left-1 rounded-full bg-ink/70 px-1.5 py-0.5 text-[9px] text-ivory">
+                  {img.color}
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -135,7 +191,7 @@ export function ReviewStep({
               >
                 <input
                   type="color"
-                  value={colorHexInput[color] ?? "#000000"}
+                  value={resolveHex(color, colorHexInput[color]) ?? "#000000"}
                   onChange={(e) => setColorHexInput((s) => ({ ...s, [color]: e.target.value }))}
                   className="h-6 w-6 cursor-pointer rounded border-0 bg-transparent p-0"
                 />
@@ -168,7 +224,7 @@ export function ReviewStep({
                       <span className="flex items-center gap-2">
                         <span
                           className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
-                          style={{ backgroundColor: colorHexInput[v.color] ?? v.colorHex ?? "#ccc" }}
+                          style={{ backgroundColor: resolveHex(v.color, colorHexInput[v.color]) ?? v.colorHex ?? "#ccc" }}
                         />
                         {v.color}
                       </span>
@@ -198,8 +254,6 @@ export function ReviewStep({
         </Button>
       </div>
 
-      {uniqueColors.length > 0 && <ColorPhotosSection colors={uniqueColors} product={product} onProductChange={onProductChange} />}
-
       <div className="rounded-2xl border border-border bg-surface p-5">
         <h2 className="font-display text-lg">{product.name}</h2>
         <div className="mt-1 flex items-center gap-2">
@@ -216,109 +270,6 @@ export function ReviewStep({
         <Button type="button" disabled={publishing || flaggedImages.length > 0} onClick={handlePublish} className="flex-1">
           {publishing ? "Publishing…" : "Publish product"}
         </Button>
-      </div>
-    </div>
-  );
-}
-
-/** Optional extra photos scoped to one color (up to 4). When a shopper picks
- * that color on the storefront, these replace the default gallery — colors
- * left without any get the default set instead. */
-function ColorPhotosSection({
-  colors,
-  product,
-  onProductChange,
-}: {
-  colors: string[];
-  product: WizardProduct;
-  onProductChange: (p: WizardProduct) => void;
-}) {
-  const { toast } = useToast();
-  const [uploadingColor, setUploadingColor] = React.useState<string | null>(null);
-  const [discardingId, setDiscardingId] = React.useState<string | null>(null);
-
-  async function handleUpload(color: string, file: File) {
-    setUploadingColor(color);
-    try {
-      const raw = await fileToDataUri(file);
-      const dataUri = await compressImageForUpload(raw);
-      const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}/images`, {
-        method: "POST",
-        json: { dataUri, type: "ORIGINAL", color },
-      });
-      onProductChange(data.product);
-    } catch (err) {
-      toast({ title: "Upload failed", description: err instanceof Error ? err.message : undefined, variant: "error" });
-    } finally {
-      setUploadingColor(null);
-    }
-  }
-
-  async function handleDiscard(imageId: string) {
-    setDiscardingId(imageId);
-    try {
-      const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}/images/${imageId}`, {
-        method: "DELETE",
-      });
-      onProductChange(data.product);
-    } catch (err) {
-      toast({ title: "Couldn't remove photo", description: err instanceof Error ? err.message : undefined, variant: "error" });
-    } finally {
-      setDiscardingId(null);
-    }
-  }
-
-  return (
-    <div>
-      <h2 className="font-display text-lg">Color-specific photos</h2>
-      <p className="mt-1 text-sm text-foreground/60">
-        Optional — add up to {MAX_IMAGES_PER_COLOR} photos for a color. A shopper who picks that color sees only
-        these; colors with none just show the default gallery above.
-      </p>
-      <div className="mt-4 space-y-4">
-        {colors.map((color) => {
-          const photos = product.images.filter((i) => i.color === color);
-          const atLimit = photos.length >= MAX_IMAGES_PER_COLOR;
-          return (
-            <div key={color} className="rounded-xl border border-border p-4">
-              <p className="text-sm font-medium">{color}</p>
-              <div className="mt-3 flex flex-wrap gap-3">
-                {photos.map((img) => (
-                  <div key={img._id} className="group relative h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-foreground/5">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.secureUrl} alt="" className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      disabled={discardingId === img._id}
-                      onClick={() => handleDiscard(img._id)}
-                      className="absolute right-1 top-1 rounded-full bg-ink/70 p-1 text-ivory opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-100"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                {!atLimit && (
-                  <label
-                    className={`flex h-24 w-20 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border text-center text-[11px] text-foreground/40 hover:border-foreground/30 ${uploadingColor === color ? "pointer-events-none opacity-50" : ""}`}
-                  >
-                    {uploadingColor === color ? "Uploading…" : "+ Add photo"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={uploadingColor === color}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = "";
-                        if (file) handleUpload(color, file);
-                      }}
-                    />
-                  </label>
-                )}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );

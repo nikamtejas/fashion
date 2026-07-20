@@ -26,6 +26,33 @@ interface AuthContextValue {
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
+const USER_CACHE_KEY = "luxeloom:auth-user";
+
+/** Last-known user, so a fresh mount (hard reload, new tab) can render the
+ * real profile icon immediately instead of a "loading" skeleton while
+ * /api/auth/me round-trips — that flash of placeholder-then-snap is what
+ * reads as the icon "refreshing" on every load. Still just a cache: the
+ * network call below runs regardless and corrects this if it's stale. */
+function readCachedUser(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(USER_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as AuthUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedUser(user: AuthUser | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (user) window.localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+    else window.localStorage.removeItem(USER_CACHE_KEY);
+  } catch {
+    // Private-mode/quota storage errors aren't worth surfacing here.
+  }
+}
+
 export function useAuth() {
   const ctx = React.useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
@@ -33,22 +60,45 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // Both start at the "logged out" default on every render pass — including
+  // the client's very first hydration render — so it always matches what
+  // the server rendered (the server has no access to localStorage and would
+  // otherwise always render this differently, a hydration mismatch that
+  // itself causes a visible flash once React patches the mismatch after
+  // hydrating). The layout effect below corrects this a moment later,
+  // client-only, after hydration has already committed.
   const [user, setUser] = React.useState<AuthUser | null>(null);
   const [loading, setLoading] = React.useState(true);
 
+  React.useLayoutEffect(() => {
+    // Runs synchronously right after mount, before the browser paints the
+    // hydrated frame — so the cached snapshot appears in the very first
+    // frame the user actually sees, instead of a beat after JS loads.
+    const cached = readCachedUser();
+    if (cached) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUser(cached);
+      setLoading(false);
+    }
+    useFavoritesStore.getState().hydrateFromCache();
+    useCartStore.getState().hydrateFromCache();
+  }, []);
+
   const refresh = React.useCallback(async () => {
+    // Both endpoints trust the session cookie directly, not this response —
+    // kick them off immediately instead of waiting for /api/auth/me first.
+    // Each already falls back to an empty state on its own if the session
+    // turns out to be missing/expired, so no separate unauthenticated branch
+    // is needed here.
+    useFavoritesStore.getState().refresh();
+    useCartStore.getState().refresh();
     try {
       const data = await apiFetch<{ user: AuthUser | null }>("/api/auth/me");
       setUser(data.user);
-      if (data.user) {
-        useFavoritesStore.getState().refresh();
-        useCartStore.getState().refresh();
-      } else {
-        useFavoritesStore.getState().clear();
-        useCartStore.getState().clear();
-      }
+      writeCachedUser(data.user);
     } catch {
       setUser(null);
+      writeCachedUser(null);
     } finally {
       setLoading(false);
     }
@@ -71,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // regardless; a fresh login re-establishes the session either way.
     } finally {
       setUser(null);
+      writeCachedUser(null);
       useFavoritesStore.getState().clear();
       useCartStore.getState().clear();
     }

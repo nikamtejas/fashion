@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import cookieParser from "cookie-parser";
 import { env } from "./config/env";
 import { attachUser } from "./middleware/auth";
@@ -51,6 +52,7 @@ export function createApp() {
   const app = express();
 
   app.use(cors({ origin: env.frontendOrigins, credentials: true }));
+  app.use(compression());
   // Webhooks verify HMAC signatures over the raw body, so they mount
   // before the JSON parser (the router applies express.raw itself).
   app.use("/api/webhooks", webhooksRoutes);

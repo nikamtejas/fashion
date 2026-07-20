@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, RotateCcw, Trash2, Upload, AlertTriangle, CheckCircle2, Star } from "lucide-react";
+import { Sparkles, RotateCcw, Trash2, Upload, AlertTriangle, CheckCircle2, Star, Plus, X, Pencil } from "lucide-react";
 import { apiFetch, API_URL } from "@/lib/api";
 import { fileToDataUri, compressImageForUpload } from "@/lib/imageQuality";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { PhotoDropzone } from "@/components/admin/PhotoDropzone";
 import { BeforeAfterSlider } from "@/components/admin/BeforeAfterSlider";
+import { cn } from "@/lib/utils";
 import type { WizardProduct, WizardImage } from "./types";
 
 type Slot = "studio_front" | "studio_back" | "model_front" | "lifestyle";
@@ -61,19 +62,72 @@ export function ImagesStep({
     pose: "standing, front-facing",
   });
 
-  const front = product.images.find((i) => i.type === "ORIGINAL" && i.side === "FRONT");
-  const back = product.images.find((i) => i.type === "ORIGINAL" && i.side === "BACK");
-  const studioFront = product.images.find((i) => i.type === "STUDIO" && i.side === "FRONT");
-  const studioBack = product.images.find((i) => i.type === "STUDIO" && i.side === "BACK");
-  const modelFront = product.images.find((i) => i.type === "AI_MODEL" && i.slot === "MODEL_FRONT");
-  const lifestyle = product.images.find((i) => i.type === "AI_MODEL" && i.slot === "LIFESTYLE");
+  // Color tabs: "Default" (activeColor = null, untagged) is the garment's
+  // base photo set; each added color gets its own independent front/back
+  // upload and its own AI-generated 4-photo set, tagged with that color so
+  // the storefront can swap the gallery when a shopper picks it. "Default"
+  // is only shown while there's actually untagged content (or the product
+  // is brand new) — once renamed into a real color, or once every photo is
+  // color-tagged, it disappears rather than sitting around as a redundant
+  // extra set nobody needs.
+  const existingColors = [...new Set(product.images.flatMap((i) => (i.color ? [i.color] : [])))];
+  const showDefaultTab = product.images.length === 0 || product.images.some((i) => !i.color);
+  const [extraColors, setExtraColors] = React.useState<string[]>(existingColors);
+  const [activeColor, setActiveColor] = React.useState<string | null>(() => (showDefaultTab ? null : (existingColors[0] ?? null)));
+  const [addingColor, setAddingColor] = React.useState(false);
+  const [newColorName, setNewColorName] = React.useState("");
+  const [renamingDefault, setRenamingDefault] = React.useState(false);
+  const [renameValue, setRenameValue] = React.useState("");
+
+  function addColor() {
+    const name = newColorName.trim();
+    if (!name) return;
+    setExtraColors((c) => (c.includes(name) ? c : [...c, name]));
+    setActiveColor(name);
+    setNewColorName("");
+    setAddingColor(false);
+  }
+
+  async function renameDefault() {
+    const name = renameValue.trim();
+    if (!name) return;
+    try {
+      const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}/images/rename-color`, {
+        method: "PATCH",
+        json: { from: null, to: name },
+      });
+      onProductChange(data.product);
+      setExtraColors((c) => (c.includes(name) ? c : [...c, name]));
+      setActiveColor(name);
+      setRenamingDefault(false);
+      setRenameValue("");
+    } catch (err) {
+      toast({ title: "Couldn't rename", description: err instanceof Error ? err.message : undefined, variant: "error" });
+    }
+  }
+
+  const front = product.images.find((i) => i.type === "ORIGINAL" && i.side === "FRONT" && (i.color ?? null) === activeColor);
+  const back = product.images.find((i) => i.type === "ORIGINAL" && i.side === "BACK" && (i.color ?? null) === activeColor);
+  const studioFront = product.images.find((i) => i.type === "STUDIO" && i.side === "FRONT" && (i.color ?? null) === activeColor);
+  const studioBack = product.images.find((i) => i.type === "STUDIO" && i.side === "BACK" && (i.color ?? null) === activeColor);
+  const modelFront = product.images.find(
+    (i) => i.type === "AI_MODEL" && i.slot === "MODEL_FRONT" && (i.color ?? null) === activeColor
+  );
+  const lifestyle = product.images.find(
+    (i) => i.type === "AI_MODEL" && i.slot === "LIFESTYLE" && (i.color ?? null) === activeColor
+  );
+
+  // "Continue to Pricing" just needs SOME color's generated set complete —
+  // not specifically the Default one. A product photographed entirely under
+  // a named color (Default renamed away, or never used) is just as valid.
+  const hasAnyGeneratedSet = product.images.some((i) => i.type === "STUDIO" || i.type === "AI_MODEL");
 
   // Which photo the storefront poster currently uses — an explicit cover
-  // choice, else the same default the backend applies (studio front, then
-  // any generated shot, then the first upload).
+  // choice, else the same color-agnostic default the backend applies
+  // (studio front, then any generated shot, then the first upload).
   const effectiveCoverId = (
     product.images.find((i) => i.isCover) ??
-    studioFront ??
+    product.images.find((i) => i.type === "STUDIO" && i.side === "FRONT") ??
     product.images.find((i) => i.type !== "ORIGINAL") ??
     product.images[0]
   )?._id;
@@ -88,7 +142,7 @@ export function ImagesStep({
     try {
       const data = await apiFetch<{ product: WizardProduct }>(`/api/admin/products/${product._id}/images`, {
         method: "POST",
-        json: { dataUri, side, type: "ORIGINAL" },
+        json: { dataUri, side, type: "ORIGINAL", color: activeColor ?? undefined },
       });
       onProductChange(data.product);
     } catch (err) {
@@ -102,7 +156,7 @@ export function ImagesStep({
     try {
       const { jobId } = await apiFetch<{ jobId: string }>(`/api/admin/products/${product._id}/photo-studio`, {
         method: "POST",
-        json: { modelOptions, lifestylePreset },
+        json: { modelOptions, lifestylePreset, color: activeColor ?? undefined },
       });
 
       const es = new EventSource(`${API_URL}/api/admin/products/${product._id}/photo-studio/${jobId}/stream`, {
@@ -157,7 +211,7 @@ export function ImagesStep({
     try {
       await apiFetch(`/api/admin/products/${product._id}/photo-studio/regenerate/${slot}`, {
         method: "POST",
-        json: { instruction },
+        json: { instruction, color: activeColor ?? undefined },
       });
       await refetchProduct();
       toast({ title: "Regenerated", variant: "success" });
@@ -211,7 +265,7 @@ export function ImagesStep({
     const dataUri = await compressImageForUpload(raw);
     await apiFetch(`/api/admin/products/${product._id}/images`, {
       method: "POST",
-      json: { dataUri, type: image.type, side: image.side, slot: image.slot, replaceImageId: image._id },
+      json: { dataUri, type: image.type, side: image.side, slot: image.slot, color: image.color, replaceImageId: image._id },
     });
     await refetchProduct();
   }
@@ -223,9 +277,132 @@ export function ImagesStep({
       <div>
         <p className="mb-4 text-sm text-foreground/60">
           Upload one casual photo of the garment&rsquo;s front and one of its back. LuxeLoom will turn these into a
-          four-photo sales set.
+          four-photo sales set. Add another color below to upload and generate its own set too.
         </p>
-        <div className="grid grid-cols-1 gap-4 sm:max-w-md sm:grid-cols-2">
+
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface p-2">
+          {showDefaultTab &&
+            (renamingDefault ? (
+              <span className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      renameDefault();
+                    }
+                    if (e.key === "Escape") {
+                      setRenamingDefault(false);
+                      setRenameValue("");
+                    }
+                  }}
+                  placeholder="Color name"
+                  className="h-8 w-28 rounded-full border border-border bg-background px-3 text-xs"
+                />
+                <Button type="button" size="sm" magnetic={false} onClick={renameDefault}>
+                  Rename
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRenamingDefault(false);
+                    setRenameValue("");
+                  }}
+                  className="p-1 text-foreground/40 hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ) : (
+              <span
+                className={cn(
+                  "flex items-center gap-1 rounded-full py-1.5 pl-3 pr-1.5 text-xs font-medium transition-colors",
+                  activeColor === null ? "bg-ink text-ivory dark:bg-ivory dark:text-ink" : "text-foreground/60 hover:bg-foreground/10"
+                )}
+              >
+                <button type="button" onClick={() => setActiveColor(null)}>
+                  Default
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRenamingDefault(true);
+                    setRenameValue("");
+                  }}
+                  title="Rename this color and use it directly — saves generating a separate, redundant set"
+                  className="opacity-60 hover:opacity-100"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          {extraColors.map((color) => (
+            <button
+              key={color}
+              type="button"
+              onClick={() => setActiveColor(color)}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                activeColor === color ? "bg-ink text-ivory dark:bg-ivory dark:text-ink" : "text-foreground/60 hover:bg-foreground/10"
+              )}
+            >
+              {color}
+            </button>
+          ))}
+          {addingColor ? (
+            <span className="flex items-center gap-1">
+              <input
+                autoFocus
+                value={newColorName}
+                onChange={(e) => setNewColorName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addColor();
+                  }
+                  if (e.key === "Escape") {
+                    setAddingColor(false);
+                    setNewColorName("");
+                  }
+                }}
+                placeholder="Color name"
+                className="h-8 w-28 rounded-full border border-border bg-background px-3 text-xs"
+              />
+              <Button type="button" size="sm" magnetic={false} onClick={addColor}>
+                Add
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddingColor(false);
+                  setNewColorName("");
+                }}
+                className="p-1 text-foreground/40 hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAddingColor(true)}
+              className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-foreground/60 hover:bg-foreground/10"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add color
+            </button>
+          )}
+        </div>
+        {activeColor && (
+          <p className="mt-2 text-xs text-foreground/50">
+            Uploading and generating photos for <strong className="text-foreground">{activeColor}</strong> — a
+            shopper who picks this color on the storefront sees only this set.
+          </p>
+        )}
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:max-w-md sm:grid-cols-2">
           <div>
             <PhotoDropzone label="Front" currentUrl={front?.secureUrl} onSelect={(uri) => handleUploadOriginal("FRONT", uri)} />
           </div>
@@ -320,7 +497,7 @@ export function ImagesStep({
         <Button variant="outline" onClick={onBack} magnetic={false} className="flex-1">
           Back
         </Button>
-        <Button onClick={onNext} disabled={!studioFront && !modelFront} className="flex-1">
+        <Button onClick={onNext} disabled={!hasAnyGeneratedSet} className="flex-1">
           Continue to Pricing
         </Button>
       </div>

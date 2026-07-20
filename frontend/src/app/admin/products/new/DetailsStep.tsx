@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, cachedApiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -43,7 +43,7 @@ export function DetailsStep({
   const typeOptions = categorySlug ? SHOP_SUBCATEGORIES[categorySlug] : undefined;
 
   React.useEffect(() => {
-    apiFetch<{ categories: Category[] }>("/api/categories").then((data) => {
+    cachedApiFetch<{ categories: Category[] }>("/api/categories").then((data) => {
       setCategories(data.categories);
       const currentCategoryId = category || data.categories[0]?._id;
       if (!category && data.categories[0]) setCategory(data.categories[0]._id);
