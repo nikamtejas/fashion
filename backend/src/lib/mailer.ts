@@ -135,6 +135,31 @@ export async function sendOtpEmail(email: string, code: string) {
   });
 }
 
+export async function sendPasswordResetEmail(email: string, code: string) {
+  if (EMAIL_MOCK) {
+    logIntegrationCall("email", "sendPasswordReset", { email, code });
+    // eslint-disable-next-line no-console
+    console.log(`\n[DEV PASSWORD RESET] Code for ${email}: ${code}\n`);
+    return;
+  }
+
+  await getTransporter().sendMail({
+    from: process.env.EMAIL_FROM,
+    to: email,
+    // Same reasoning as sendOtpEmail — never put the code in the subject.
+    subject: "Reset your LuxeLoom password",
+    text: `${code} is your LuxeLoom password reset code. It's valid for the next 10 minutes.\n\nDidn't request this? You can safely ignore this email — your password hasn't been changed.`,
+    html: renderBrandEmail({
+      heading: "Reset your password",
+      bodyHtml: `
+        <p style="margin:0 0 18px;">Use this code to set a new password — it's valid for the next 10 minutes.</p>
+        <p style="margin:0 0 18px;"><span style="display:inline-block;background:#FAF7F2;border:1px solid #eee5d8;border-radius:12px;padding:12px 26px;font-size:28px;letter-spacing:8px;font-weight:600;color:#141414;">${code}</span></p>
+        <p style="margin:0;font-size:13px;color:#8a8378;">Didn't request this? You can safely ignore this email — your password hasn't been changed.</p>`,
+      footnote: "You're receiving this because a password reset was requested for this email address on LuxeLoom.",
+    }),
+  });
+}
+
 // Recipients ride in bcc (never to/cc — a marketing blast must never expose
 // one subscriber's address to another), sent in chunks so no single SMTP
 // command tries to bcc an unbounded recipient list at once.

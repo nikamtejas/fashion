@@ -5,7 +5,7 @@ import { z } from "zod";
 import { env } from "../config/env";
 import { User } from "../models/User";
 import { OtpToken } from "../models/OtpToken";
-import { sendOtpEmail } from "../lib/mailer";
+import { sendOtpEmail, sendPasswordResetEmail } from "../lib/mailer";
 import { sendOtpSms } from "../lib/integrations/twilio";
 import { findValidOtp, issueOtp, normalizeIndianPhone, parseDob } from "../lib/otp";
 import { signSession } from "../lib/jwt";
@@ -120,6 +120,112 @@ router.post("/otp/verify", async (req, res) => {
   res.json({ user: { id: user._id.toString(), email: user.email, name: user.name, role: user.role } });
 });
 
+// ─── Password login (alternative to email OTP) + forgot/reset ─────────────
+
+router.post("/password/login", async (req, res) => {
+  const parsed = z
+    .object({ email: z.string().email(), password: z.string().min(1) })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Enter your email and password" });
+  }
+  const email = parsed.data.email.toLowerCase().trim();
+
+  // Brute-force guard on password guesses, same shape as otp-verify.
+  if (!checkRateLimit(`password-login:${email}`, 8, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many attempts — wait a few minutes and try again" });
+  }
+
+  const user = await User.findOne({ email }).select("+passwordHash");
+  if (!user) {
+    return res.status(404).json({
+      error: "No LuxeLoom account uses this email — create one first",
+      code: "NOT_REGISTERED",
+    });
+  }
+  if (!user.passwordHash) {
+    return res.status(401).json({
+      error: "This account doesn't have a password yet — use 'Forgot password' to set one, or log in with a code instead",
+      code: "NO_PASSWORD_SET",
+    });
+  }
+  const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
+  if (!valid) {
+    return res.status(401).json({ error: "Incorrect password" });
+  }
+
+  const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" | "OPS" | "CATALOG" });
+  res.cookie(env.cookieName, session, COOKIE_OPTS);
+  res.json({ user: { id: user._id.toString(), email: user.email, name: user.name, role: user.role } });
+});
+
+router.post("/password/forgot", async (req, res) => {
+  const parsed = z.object({ email: z.string().email() }).safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Enter a valid email address" });
+  }
+  const email = parsed.data.email.toLowerCase().trim();
+
+  // Stricter than otp-request (5/15min) — this one sends mail regardless of
+  // whether the account exists (see below), so it's a more attractive
+  // email-bombing target and gets less headroom.
+  if (!checkRateLimit(`password-forgot:${email}`, 3, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many attempts — wait a few minutes and try again" });
+  }
+
+  const user = await User.exists({ email });
+  if (user) {
+    const code = await issueOtp(`pwreset:${email}`);
+    await sendPasswordResetEmail(email, code);
+  }
+  // Always the same response whether or not the account exists — unlike
+  // otp/request's NOT_REGISTERED, a password-reset endpoint replying
+  // differently for known vs. unknown emails is a classic account-existence
+  // oracle, and there's no login-flow UX reason to need that distinction here.
+  res.json({ ok: true });
+});
+
+router.post("/password/reset", async (req, res) => {
+  const parsed = z
+    .object({ email: z.string().email(), code: z.string().min(4), password: z.string().min(8, "Password must be at least 8 characters").max(200) })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
+  }
+  const email = parsed.data.email.toLowerCase().trim();
+
+  if (!checkRateLimit(`password-reset:${email}`, 8, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Too many attempts — wait a few minutes and try again" });
+  }
+
+  const token = await findValidOtp(`pwreset:${email}`, parsed.data.code.trim());
+  if (!token) {
+    return res.status(401).json({ error: "Incorrect or expired code — request a new one" });
+  }
+  token.consumedAt = new Date();
+
+  // Consuming the token (a DB round trip) and hashing the new password (CPU-
+  // bound, no I/O) don't depend on each other — run them together instead
+  // of paying both in sequence.
+  const [, passwordHash] = await Promise.all([token.save(), bcrypt.hash(parsed.data.password, 10)]);
+
+  // findOneAndUpdate instead of findOne-then-updateOne — one Atlas round
+  // trip instead of two for what's otherwise the same "does this user
+  // exist, and if so set their password" operation. Targeted $set, not
+  // user.save() — see /otp/verify for why (legacy docs without the current
+  // address schema would fail full-document validation).
+  const user = await User.findOneAndUpdate({ email }, { $set: { passwordHash } }, { new: true });
+  if (!user) {
+    return res.status(404).json({ error: "No LuxeLoom account uses this email" });
+  }
+
+  // Log the user straight in — they just proved control of the email, no
+  // reason to make them log in again right after resetting.
+  const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" | "OPS" | "CATALOG" });
+  res.cookie(env.cookieName, session, COOKIE_OPTS);
+  res.json({ user: { id: user._id.toString(), email: user.email, name: user.name, role: user.role } });
+});
+
 // ─── Registration (email OTP + Twilio SMS OTP + name + date of birth) ──────
 
 const registerSchema = z.object({
@@ -127,6 +233,7 @@ const registerSchema = z.object({
   dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter your date of birth"),
   email: z.string().email("Enter a valid email address"),
   phone: z.string().min(10, "Enter your mobile number"),
+  password: z.string().min(8, "Password must be at least 8 characters").max(200),
 });
 
 /** Validates the details, then sends one OTP to the email (existing mailer)
@@ -209,6 +316,7 @@ router.post("/register/verify", async (req, res) => {
     phone,
     emailVerified: now,
     phoneVerified: now,
+    passwordHash: await bcrypt.hash(parsed.data.password, 10),
   });
 
   const session = signSession({ uid: user._id.toString(), email: user.email, role: user.role as "CUSTOMER" | "ADMIN" | "OPS" | "CATALOG" });

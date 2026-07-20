@@ -36,6 +36,11 @@ const UserSchema = new Schema(
     role: { type: String, enum: ["CUSTOMER", "ADMIN", "OPS", "CATALOG"], default: "CUSTOMER", index: true },
     addresses: { type: [AddressSchema], default: [] },
     googleId: { type: String },
+    // Optional — accounts created before this feature (or via Google OAuth)
+    // have none until they set one via "Forgot password". select: false so
+    // it never rides along on routine .find()/.findById() reads; routes that
+    // actually need to compare it ask with .select("+passwordHash").
+    passwordHash: { type: String, select: false },
   },
   { timestamps: true }
 );

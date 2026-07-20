@@ -23,14 +23,24 @@ export default function RegisterForm() {
   const [dob, setDob] = React.useState("");
   const [email, setEmail] = React.useState(searchParams.get("email") ?? "");
   const [phone, setPhone] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
   const [emailCode, setEmailCode] = React.useState("");
   const [phoneCode, setPhoneCode] = React.useState("");
   const [loading, setLoading] = React.useState(false);
 
-  const details = { name, dob, email, phone };
+  const details = { name, dob, email, phone, password };
 
   async function handleSendCodes(e?: React.FormEvent) {
     e?.preventDefault();
+    if (password.length < 8) {
+      toast({ title: "Password too short", description: "Use at least 8 characters.", variant: "error" });
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast({ title: "Passwords don't match", variant: "error" });
+      return;
+    }
     setLoading(true);
     try {
       await apiFetch("/api/auth/register/request", { method: "POST", json: details });
@@ -123,6 +133,26 @@ export default function RegisterForm() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
+            <Input
+              type="password"
+              required
+              minLength={8}
+              label="Password"
+              placeholder="At least 8 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <Input
+              type="password"
+              required
+              minLength={8}
+              label="Confirm password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+            <p className="-mt-2 text-xs text-foreground/50">
+              You&rsquo;ll be able to log in with either this password or a one-time code emailed to you.
+            </p>
             <Button type="submit" size="lg" disabled={loading} className="w-full">
               {loading ? "Sending codes…" : "Send verification codes"}
               <ArrowRight className="h-4 w-4" />
