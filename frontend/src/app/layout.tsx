@@ -8,6 +8,7 @@ import { AnnouncementMarquee } from "@/components/layout/AnnouncementMarquee";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PageTransition } from "@/components/layout/PageTransition";
+import { RouteProgressBar } from "@/components/layout/RouteProgressBar";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { AskLoom } from "@/components/stylist/AskLoom";
 import { PwaSetup } from "@/components/layout/PwaSetup";
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <ThemeProvider>
             <ToastProvider>
+              <RouteProgressBar />
               <AnnouncementMarquee />
               <Navbar />
               <main className="flex-1">
